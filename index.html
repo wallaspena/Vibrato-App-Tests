@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibrato Oscillator with Animating Metronome</title>
+<title>Vibrato Oscillator (Flat Volume - Safety Limit)</title>
 <style>
     /* --- Styles copied directly from App 2 --- */
     label, input { display: block; margin-bottom: 10px; }
@@ -24,8 +24,9 @@
 <body>
 <div class="controls-container">
     <div>
-        <label for="frequency">Frequency1: <span id="frequency-value">A4</span></label>
+        <label for="frequency">Frequency2: <span id="frequency-value">A4</span></label>
         <div class="param-control">
+            <!-- OPTIMAL PHONE RANGE: 0 (A4) to 12 (A5) -->
             <input type="range" id="frequency" min="0" max="12" value="0" step="1">
             <button id="frequency-minus">-</button>
             <button id="frequency-plus">+</button>
@@ -91,7 +92,7 @@ class VibratoProcessor extends AudioWorkletProcessor {
     this.lfoPhase = 0;
     this.previousInstantaneousFreq = 0;
     
-    // --- FIX PART A: Initialize Sync State ---
+    // Initialize Sync State
     this.startTime = -1;
     this.port.onmessage = (e) => {
       if (e.data.startTime !== undefined) {
@@ -105,8 +106,7 @@ class VibratoProcessor extends AudioWorkletProcessor {
     const outputChannel = output[0];
     const bufferLength = outputChannel.length;
     
-    // --- FIX PART B: Wait for Start Time ---
-    // If we haven't reached the start time, output silence and DO NOT advance phase.
+    // Wait for Start Time for perfect phase alignment
     if (this.startTime !== -1 && currentTime < this.startTime) {
         outputChannel.fill(0);
         return true;
@@ -171,7 +171,13 @@ let automationAnimationFrame = null;
 let automationStartTime = 0;
 
 const parameterRampTime = 0.125;
-const SYNC_DELAY = 0.1; // This delay now ensures perfect phase alignment
+const SYNC_DELAY = 0.1;
+
+// --- CONSTANT GAIN SETTINGS ---
+// Note Gain: 0.60
+// Click Gain: 0.25
+// Total Sum: 0.85 (approx -1.4 dB). Completely safe from clipping.
+const FIXED_NOTE_GAIN = 0.60;
 
 const frequencySlider = document.getElementById('frequency');
 const depthSlider = document.getElementById('depth');
@@ -253,7 +259,7 @@ function startOscillator() {
 }
 
 async function startOscillatorLogic() {
-    // Load Worklet from Blob to act as a single file
+    // Load Worklet from Blob
     if (!vibratoWorkletNode) {
         try {
             const blob = new Blob([workletCode], { type: 'application/javascript' });
@@ -269,9 +275,15 @@ async function startOscillatorLogic() {
     
     const startTime = audioContext.currentTime + SYNC_DELAY;
 
-    // --- FIX PART C: Send the Sync Timestamp to the Worklet ---
-    // This tells the oscillator: "Do not start moving your phase until EXACTLY this time."
+    // Send the Sync Timestamp to the Worklet
     vibratoWorkletNode.port.postMessage({ startTime: startTime });
+
+    let startFreqHz;
+    if (isStartRecorded && isFinishRecorded) {
+        startFreqHz = semitonesToFrequency(startParams.frequency);
+    } else {
+        startFreqHz = semitonesToFrequency(parseFloat(frequencySlider.value));
+    }
 
     let automationDuration = 0;
 
@@ -280,7 +292,6 @@ async function startOscillatorLogic() {
         if (automationDuration < 0) automationDuration = 0;
         automationStartTime = startTime;
 
-        const startFreqHz = semitonesToFrequency(startParams.frequency);
         const startLfoFreq = startParams.rate * (startParams.bpm / 60);
         const finishFreqHz = semitonesToFrequency(finishParams.frequency);
         const finishLfoFreq = finishParams.rate * (finishParams.bpm / 60);
@@ -373,9 +384,10 @@ async function startOscillatorLogic() {
     isPlaying = true;
     playButton.textContent = "Pause";
     
-    // Ramp up gain exactly when the worklet starts generating sound
+    // --- FLAT VOLUME (FIXED GAIN) ---
+    // No dynamic adjustment. Just a safe, constant volume.
     gainNode.gain.setValueAtTime(0, startTime);
-    gainNode.gain.linearRampToValueAtTime(0.74, startTime + 0.05);
+    gainNode.gain.linearRampToValueAtTime(FIXED_NOTE_GAIN, startTime + 0.05);
 }
 
 function updateAutomationUI(startTime, endTime, startParams, finishParams) {
@@ -465,7 +477,9 @@ function smoothStopOscillator(callback = () => {}) {
 function ensureMetronomeGainNode() {
     if (!metronomeGainNode) {
         metronomeGainNode = audioContext.createGain();
-        metronomeGainNode.gain.value = 0.25;
+        // --- SAFE METRONOME GAIN ---
+        // 0.25 mixes with 0.60 note to stay under 0.89 total (-1db)
+        metronomeGainNode.gain.value = 0.25; 
         metronomeGainNode.connect(audioContext.destination);
     }
 }
@@ -611,6 +625,10 @@ function updateParameters(setImmediately = false, scheduleTimeOverride = null) {
                 params.get('rate').linearRampToValueAtTime(rate, scheduleTime);
             }
         }
+        
+        // --- NO GAIN UPDATES HERE ---
+        // Gain stays constant at 0.60, as requested.
+
     } catch (e) {
         console.error("Error updating audio parameters:", e);
     }
