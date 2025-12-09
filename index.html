@@ -3,86 +3,230 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibrato Oscillator (Flat Volume - Safety Limit)</title>
+<title>Vibrato Ear Trainer</title>
 <style>
-    /* --- Styles copied directly from App 2 --- */
-    label, input { display: block; margin-bottom: 10px; }
-    body { display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; box-sizing: border-box; }
-    [type=range] { appearance: none; display: block; background-color: rgb(255, 255, 255); box-shadow: 0 0 2px black; padding: 4px; width: 150px; cursor: pointer; }
-    [type=range]::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; border-radius: 1em; background-color: black; cursor: pointer; }
-    .unit-symbol { display: none; }
-    #toggle-play, #toggle-metronome { padding: 10px 15px; font-size: 14px; border-radius: 5px; background-color: #000000; color: white; border: 1px solid #ccc; cursor: pointer; margin-top: 15px; min-width: 120px; text-align: center; }
-    #toggle-play:hover, #toggle-metronome:hover { background-color: #333333; }
-    .param-control { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-    .param-control button { padding: 0; font-size: 14px; font-weight: bold; border-radius: 5px; background-color: white; border: 1px solid #ccc; cursor: pointer; color: black; height: 30px; width: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-sizing: border-box; }
-    .param-control input[type="range"] { margin: 0; }
-    .automation-active { background-color: #cccccc !important; color: #555555 !important; }
-    label { font-weight: bold; font-size: 0.9em; color: #333; margin-bottom: 5px; }
-    label span:first-of-type { font-weight: normal; color: #555; display: inline-block; min-width: 40px; }
+    :root {
+        --bg: #f4f4f4;
+        --card-bg: #ffffff;
+        --text: #333333;
+        --accent: #000000;
+        --success: #28a745;
+        --error: #dc3545;
+        --radius: 12px;
+    }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: var(--bg);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    .game-container {
+        background: var(--card-bg);
+        padding: 30px;
+        border-radius: var(--radius);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        width: 100%;
+        max-width: 400px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    h1 { margin: 0 0 10px 0; font-size: 1.5rem; letter-spacing: -0.5px; }
+    h2 { margin: 0 0 20px 0; font-size: 1rem; color: #666; font-weight: normal; }
+
+    .stats-bar {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+        font-weight: bold;
+        color: #888;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+    }
+
+    .listen-btn {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: none;
+        color: white;
+        font-size: 1.5rem; /* Icon size */
+        cursor: pointer;
+        margin-bottom: 25px;
+        transition: transform 0.1s, background-color 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: auto;
+        margin-right: auto;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    
+    .listen-btn:active { transform: scale(0.95); }
+    .listen-btn.playing { background-color: #444; }
+
+    /* SVG Icons for Play/Stop */
+    .icon { width: 30px; height: 30px; fill: white; }
+
+    .options-grid {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .option-btn {
+        background: white;
+        border: 2px solid #eee;
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 500;
+    }
+
+    .option-btn:hover { border-color: #ccc; }
+    .option-btn:active { background-color: #f9f9f9; }
+
+    .controls {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin-top: 20px;
+    }
+
+    select, .action-btn {
+        padding: 10px 15px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        background: white;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+    
+    .action-btn { background: var(--accent); color: white; border: none; }
+
+    /* Modal Overlay */
+    .overlay {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(255,255,255,0.95);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s;
+        padding: 20px;
+    }
+    
+    .overlay.visible { opacity: 1; pointer-events: all; }
+    
+    .overlay h3 { font-size: 2rem; margin: 0 0 10px 0; }
+    .overlay p { font-size: 1.1rem; color: #555; margin-bottom: 20px; }
+    .overlay .btn-next {
+        background: var(--accent); color: white; border: none;
+        padding: 12px 30px; font-size: 1rem; border-radius: 25px;
+        cursor: pointer;
+    }
+
+    .overlay.correct h3 { color: var(--success); }
+    .overlay.wrong h3 { color: var(--error); }
+
+    .high-scores {
+        margin-top: 30px;
+        font-size: 0.85rem;
+        color: #777;
+        text-align: left;
+        width: 100%;
+        max-width: 400px;
+    }
+    .high-scores ol { padding-left: 20px; }
+
+    /* Record Breaker Animation */
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+    }
+    .new-record { color: #d63384; animation: pulse 1s infinite; font-weight: bold; }
+
 </style>
 </head>
 <body>
-<div class="controls-container">
-    <div>
-        <label for="frequency">Frequency: <span id="frequency-value">A4</span></label>
-        <div class="param-control">
-            <!-- OPTIMAL PHONE RANGE: 0 (A4) to 12 (A5) -->
-            <input type="range" id="frequency" min="0" max="12" value="0" step="1">
-            <button id="frequency-minus">-</button>
-            <button id="frequency-plus">+</button>
-        </div>
+
+<div class="game-container">
+    <h1>Vibrato Quiz</h1>
+    <h2 id="difficulty-label">Difficulty: Medium</h2>
+
+    <div class="stats-bar">
+        <span id="round-display">Round: 1/5</span>
+        <span id="score-display">Score: 0</span>
     </div>
 
-    <div>
-        <label for="depth">Amplitude: <span id="depth-value">50</span> <span class="unit-symbol">%</span></label>
-        <div class="param-control">
-            <input type="range" id="depth" min="0" max="44" value="22" step="1">
-            <button id="depth-minus">-</button>
-            <button id="depth-plus">+</button>
-        </div>
+    <!-- Play/Stop Button -->
+    <button id="listen-btn" class="listen-btn" aria-label="Play Sound">
+        <!-- Play Icon -->
+        <svg id="icon-play" class="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <!-- Stop Icon (Hidden by default) -->
+        <svg id="icon-stop" class="icon" viewBox="0 0 24 24" style="display:none"><path d="M6 6h12v12H6z"/></svg>
+    </button>
+    <p style="font-size: 0.8rem; color: #999; margin-top:-15px; margin-bottom: 20px;">Tap to listen (A4 Note)</p>
+
+    <div id="options-container" class="options-grid">
+        <!-- Buttons injected by JS -->
     </div>
 
-    <div>
-        <label for="rate">Speed: <span id="rate-value">5.5</span> <span class="unit-symbol">%</span></label>
-        <div class="param-control">
-            <input type="range" id="rate" min="4" max="7" value="5" step="0.1">
-            <button id="rate-minus">-</button>
-            <button id="rate-plus">+</button>
-        </div>
+    <div class="controls">
+        <select id="difficulty-select">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+        </select>
+        <button id="restart-btn" class="action-btn">Restart Game</button>
     </div>
 
-    <div>
-        <label for="bpm">Metronome: <span id="bpm-value">60</span></label>
-        <div class="param-control">
-            <input type="range" id="bpm" min="45" max="105" value="60" step="1">
-            <button id="bpm-minus">-</button>
-            <button id="bpm-plus">+</button>
-        </div>
+    <!-- Feedback Overlay -->
+    <div id="feedback-overlay" class="overlay">
+        <h3 id="feedback-title">Correct!</h3>
+        <p id="feedback-message">The answer was 5.5Hz / 22 cents</p>
+        <button id="next-round-btn" class="btn-next">Next Round</button>
     </div>
+</div>
 
-    <div>
-        <label for="automationDuration">Automation: <span id="automationDuration-value">5s</span></label>
-        <div class="param-control">
-            <input type="range" id="automationDuration" min="0" max="10" value="4" step="1">
-            <button id="automation-start" title="Record Start Parameters">1</button>
-            <button id="automation-finish" title="Record Finish Parameters">2</button>
-            <button id="direct-mode" title="Direct Mode (Jump Start, Smooth End)">D</button>
-        </div>
-    </div>
-
-    <button id="toggle-play">Play</button>
-    <button id="toggle-metronome">Metronome On</button>
+<div class="high-scores">
+    <strong>Top 3 High Scores:</strong>
+    <ol id="highscore-list">
+        <li>-</li>
+        <li>-</li>
+        <li>-</li>
+    </ol>
 </div>
 
 <script>
-// --- 1. DEFINE PROCESSOR CODE WITH SYNC FIXES ---
+/**
+ * --- AUDIO ENGINE (FROM PROVIDED APP) ---
+ */
 const workletCode = `
 class VibratoProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
-      { name: 'baseFrequency', defaultValue: 442, minValue: 20, maxValue: 20000, automationRate: 'a-rate' },
-      { name: 'depth', defaultValue: 50, minValue: 0, maxValue: 200, automationRate: 'a-rate' },
-      { name: 'rate', defaultValue: 5.0, minValue: 0.1, maxValue: 20, automationRate: 'a-rate' }
+      { name: 'baseFrequency', defaultValue: 442, minValue: 20, maxValue: 20000 },
+      { name: 'depth', defaultValue: 50, minValue: 0, maxValue: 200 },
+      { name: 'rate', defaultValue: 5.0, minValue: 0.1, maxValue: 20 }
     ];
   }
 
@@ -91,26 +235,12 @@ class VibratoProcessor extends AudioWorkletProcessor {
     this.carrierPhase = 0;
     this.lfoPhase = 0;
     this.previousInstantaneousFreq = 0;
-    
-    // Initialize Sync State
-    this.startTime = -1;
-    this.port.onmessage = (e) => {
-      if (e.data.startTime !== undefined) {
-        this.startTime = e.data.startTime;
-      }
-    };
   }
 
   process(inputs, outputs, parameters) {
     const output = outputs[0];
     const outputChannel = output[0];
     const bufferLength = outputChannel.length;
-    
-    // Wait for Start Time for perfect phase alignment
-    if (this.startTime !== -1 && currentTime < this.startTime) {
-        outputChannel.fill(0);
-        return true;
-    }
 
     const baseFreqParams = parameters.baseFrequency;
     const depthParams = parameters.depth;
@@ -123,7 +253,7 @@ class VibratoProcessor extends AudioWorkletProcessor {
       const currentDepth = depthParams.length > 1 ? depthParams[i] : depthParams[0];
       const currentRate = rateParams.length > 1 ? rateParams[i] : rateParams[0];
 
-      // Dynamic Calibration
+      // Dynamic Calibration from original app
       const calibrationFactor = 1.0 + (currentRate * 0.005);
       const effectiveDepth = currentDepth * calibrationFactor;
 
@@ -155,643 +285,320 @@ class VibratoProcessor extends AudioWorkletProcessor {
 registerProcessor('vibrato-processor', VibratoProcessor);
 `;
 
-const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-let vibratoWorkletNode, gainNode, metronomeGainNode;
-
+let audioContext = null;
+let vibratoNode = null;
+let gainNode = null;
 let isPlaying = false;
-let isMetronomeOn = false;
-let fixedMetronomeInterval = null;
-let scheduledAnimatedClicks = [];
-let startParams = null;
-let finishParams = null;
-let isStartRecorded = false;
-let isFinishRecorded = false;
-let automationCompletionTimer = null;
-let automationAnimationFrame = null;
-let automationStartTime = 0;
+const FIXED_GAIN = 0.60;
+const FADE_TIME = 0.1;
 
-const parameterRampTime = 0.125;
-const SYNC_DELAY = 0.1;
+// --- GAME LOGIC VARIABLES ---
+const MAX_ROUNDS = 5;
+let currentRound = 1;
+let currentScore = 0;
+let currentDifficulty = 'medium';
+let targetValues = { rate: 0, depth: 0 };
+let currentOptions = [];
+let highScores = JSON.parse(localStorage.getItem('vibratoHighScores')) || [0, 0, 0];
+let gameState = 'waiting'; // waiting, playing, feedback, gameover
 
-// --- CONSTANT GAIN SETTINGS ---
-// Note Gain: 0.60
-// Click Gain: 0.25
-// Total Sum: 0.85 (approx -1.4 dB). Completely safe from clipping.
-const FIXED_NOTE_GAIN = 0.60;
+// --- DOM ELEMENTS ---
+const listenBtn = document.getElementById('listen-btn');
+const iconPlay = document.getElementById('icon-play');
+const iconStop = document.getElementById('icon-stop');
+const optionsContainer = document.getElementById('options-container');
+const roundDisplay = document.getElementById('round-display');
+const scoreDisplay = document.getElementById('score-display');
+const difficultySelect = document.getElementById('difficulty-select');
+const difficultyLabel = document.getElementById('difficulty-label');
+const restartBtn = document.getElementById('restart-btn');
+const overlay = document.getElementById('feedback-overlay');
+const feedbackTitle = document.getElementById('feedback-title');
+const feedbackMessage = document.getElementById('feedback-message');
+const nextRoundBtn = document.getElementById('next-round-btn');
+const highscoreList = document.getElementById('highscore-list');
 
-const frequencySlider = document.getElementById('frequency');
-const depthSlider = document.getElementById('depth');
-const rateSlider = document.getElementById('rate');
-const bpmSlider = document.getElementById('bpm');
-const frequencyValueSpan = document.getElementById('frequency-value');
-const depthValueSpan = document.getElementById('depth-value');
-const rateValueSpan = document.getElementById('rate-value');
-const bpmValueSpan = document.getElementById('bpm-value');
-const playButton = document.getElementById('toggle-play');
-const metronomeButton = document.getElementById('toggle-metronome');
-const automationDurationSlider = document.getElementById('automationDuration');
-const automationDurationValueSpan = document.getElementById('automationDuration-value');
-const automationStartButton = document.getElementById('automation-start');
-const automationFinishButton = document.getElementById('automation-finish');
-const directModeButton = document.getElementById('direct-mode');
+// --- AUDIO FUNCTIONS ---
 
-let isDirectMode = false;
-
-directModeButton.addEventListener('click', () => {
-    isDirectMode = !isDirectMode;
-    directModeButton.classList.toggle('automation-active', isDirectMode);
-});
-
-async function resumeAudioContext() {
+async function initAudio() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const blob = new Blob([workletCode], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        await audioContext.audioWorklet.addModule(url);
+    }
     if (audioContext.state === 'suspended') {
         await audioContext.resume();
     }
 }
 
-function cleanupAllResources() {
-    if (isPlaying) smoothStopOscillator();
-    if (audioContext && audioContext.state !== 'closed') audioContext.close().catch(() => {});
-    cleanupMetronome();
-    cancelAnimationFrame(automationAnimationFrame);
-    clearTimeout(automationCompletionTimer);
-    vibratoWorkletNode = null;
-    gainNode = null;
-    metronomeGainNode = null;
-    scheduledAnimatedClicks = [];
-}
-
-function handleVisibilityChange() {
-    if (document.hidden) {
-        if (isPlaying) smoothStopOscillator();
-        cleanupMetronome();
-    }
-}
-
-if ('oninterrupted' in audioContext) {
-    audioContext.oninterrupted = () => smoothStopOscillator();
-}
-
-if ('onstatechange' in audioContext) {
-    audioContext.onstatechange = () => {
-        if (audioContext.state === 'interrupted') smoothStopOscillator();
-    };
-}
-
-function createOscillator() {
-    if (vibratoWorkletNode) { try { vibratoWorkletNode.disconnect(); } catch (e) {} }
-    if (gainNode) { try { gainNode.disconnect(); } catch (e) {} }
-
-    vibratoWorkletNode = new AudioWorkletNode(audioContext, 'vibrato-processor');
-    gainNode = audioContext.createGain();
-    
-    vibratoWorkletNode.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-}
-
-function startOscillator() {
+function playSound() {
     if (isPlaying) {
-        smoothStopOscillator(() => { startOscillatorLogic(); });
-    } else {
-        startOscillatorLogic();
-    }
-}
-
-async function startOscillatorLogic() {
-    // Load Worklet from Blob
-    if (!vibratoWorkletNode) {
-        try {
-            const blob = new Blob([workletCode], { type: 'application/javascript' });
-            const url = URL.createObjectURL(blob);
-            await audioContext.audioWorklet.addModule(url);
-        } catch (e) {
-            console.error("Failed to load AudioWorklet:", e);
-            return;
-        }
-    }
-    
-    createOscillator();
-    
-    const startTime = audioContext.currentTime + SYNC_DELAY;
-
-    // Send the Sync Timestamp to the Worklet
-    vibratoWorkletNode.port.postMessage({ startTime: startTime });
-
-    let startFreqHz;
-    if (isStartRecorded && isFinishRecorded) {
-        startFreqHz = semitonesToFrequency(startParams.frequency);
-    } else {
-        startFreqHz = semitonesToFrequency(parseFloat(frequencySlider.value));
+        stopSound();
+        return;
     }
 
-    let automationDuration = 0;
+    initAudio().then(() => {
+        // Disconnect old nodes if they exist
+        if (vibratoNode) { try { vibratoNode.disconnect(); } catch(e){} }
+        if (gainNode) { try { gainNode.disconnect(); } catch(e){} }
 
-    if (isStartRecorded && isFinishRecorded) {
-        automationDuration = parseFloat(automationDurationSlider.value);
-        if (automationDuration < 0) automationDuration = 0;
-        automationStartTime = startTime;
+        vibratoNode = new AudioWorkletNode(audioContext, 'vibrato-processor');
+        gainNode = audioContext.createGain();
 
-        const startLfoFreq = startParams.rate * (startParams.bpm / 60);
-        const finishFreqHz = semitonesToFrequency(finishParams.frequency);
-        const finishLfoFreq = finishParams.rate * (finishParams.bpm / 60);
+        // Connect
+        vibratoNode.connect(gainNode);
+        gainNode.connect(audioContext.destination);
 
-        const endTime = startTime + automationDuration;
+        // Set Parameters
+        const params = vibratoNode.parameters;
+        // A4 = 442Hz in the original app logic
+        params.get('baseFrequency').setValueAtTime(442, audioContext.currentTime);
+        params.get('rate').setValueAtTime(targetValues.rate, audioContext.currentTime);
+        params.get('depth').setValueAtTime(targetValues.depth, audioContext.currentTime);
 
-        if (isDirectMode) {
-            const rampStartTime = Math.max(startTime, endTime - parameterRampTime);
-            const params = vibratoWorkletNode.parameters;
-            
-            params.get('baseFrequency').setValueAtTime(startFreqHz, startTime);
-            if (rampStartTime > startTime) params.get('baseFrequency').setValueAtTime(startFreqHz, rampStartTime);
-            params.get('baseFrequency').linearRampToValueAtTime(finishFreqHz, endTime);
+        // Fade in
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(FIXED_GAIN, audioContext.currentTime + FADE_TIME);
 
-            params.get('depth').setValueAtTime(startParams.depth, startTime);
-            if (rampStartTime > startTime) params.get('depth').setValueAtTime(startParams.depth, rampStartTime);
-            params.get('depth').linearRampToValueAtTime(finishParams.depth, endTime);
-
-            params.get('rate').setValueAtTime(startLfoFreq, startTime);
-            if (rampStartTime > startTime) params.get('rate').setValueAtTime(startLfoFreq, rampStartTime);
-            params.get('rate').linearRampToValueAtTime(finishLfoFreq, endTime);
-
-            frequencySlider.value = startParams.frequency;
-            depthSlider.value = startParams.depth;
-            rateSlider.value = startParams.rate;
-            bpmSlider.value = startParams.bpm;
-            updateParameterDisplays();
-
-            clearTimeout(automationCompletionTimer);
-            automationCompletionTimer = setTimeout(() => {
-                if (isPlaying) {
-                    frequencySlider.value = finishParams.frequency;
-                    depthSlider.value = finishParams.depth;
-                    rateSlider.value = finishParams.rate;
-                    bpmSlider.value = finishParams.bpm;
-                    updateParameterDisplays();
-                    if (isMetronomeOn) {
-                        cleanupMetronome();
-                        startFixedBpmMetronome(audioContext.currentTime, finishParams.bpm);
-                    }
-                }
-            }, (automationDuration + SYNC_DELAY) * 1000 + 50);
-
-            if (isMetronomeOn) {
-                startFixedBpmMetronome(startTime, startParams.bpm);
-            }
-
-        } else {
-             const params = vibratoWorkletNode.parameters;
-             params.get('baseFrequency').setValueAtTime(startFreqHz, startTime);
-             params.get('depth').setValueAtTime(startParams.depth, startTime);
-             params.get('rate').setValueAtTime(startLfoFreq, startTime);
-
-            params.get('baseFrequency').linearRampToValueAtTime(finishFreqHz, endTime);
-            params.get('depth').linearRampToValueAtTime(finishParams.depth, endTime);
-            params.get('rate').linearRampToValueAtTime(finishLfoFreq, endTime);
-
-            frequencySlider.value = startParams.frequency;
-            depthSlider.value = startParams.depth;
-            rateSlider.value = startParams.rate;
-            bpmSlider.value = startParams.bpm;
-            updateParameterDisplays();
-
-            cancelAnimationFrame(automationAnimationFrame);
-            updateAutomationUI(startTime, endTime, startParams, finishParams);
-
-            clearTimeout(automationCompletionTimer);
-            automationCompletionTimer = setTimeout(() => {
-                if (isPlaying) {
-                    frequencySlider.value = finishParams.frequency;
-                    depthSlider.value = finishParams.depth;
-                    rateSlider.value = finishParams.rate;
-                    bpmSlider.value = finishParams.bpm;
-                    updateParameterDisplays();
-                }
-            }, (automationDuration + SYNC_DELAY) * 1000 + 50);
-
-            if (isMetronomeOn) {
-                startAnimatedBpmMetronome(startTime, automationDuration, startParams.bpm, finishParams.bpm);
-            }
-        }
-    } else {
-        updateParameters(true, startTime);
-        if (isMetronomeOn) {
-            const currentBpm = parseFloat(bpmSlider.value);
-            startFixedBpmMetronome(startTime, currentBpm);
-        }
-    }
-
-    isPlaying = true;
-    playButton.textContent = "Pause";
-    
-    // --- FLAT VOLUME (FIXED GAIN) ---
-    // No dynamic adjustment. Just a safe, constant volume.
-    gainNode.gain.setValueAtTime(0, startTime);
-    gainNode.gain.linearRampToValueAtTime(FIXED_NOTE_GAIN, startTime + 0.05);
-}
-
-function updateAutomationUI(startTime, endTime, startParams, finishParams) {
-    const now = audioContext.currentTime;
-    const duration = endTime - startTime;
-    const progress = duration > 0 ? Math.min(1, Math.max(0, (now - startTime) / duration)) : 1;
-
-    if (progress < 1) {
-        const currentFreq = startParams.frequency + (finishParams.frequency - startParams.frequency) * progress;
-        const currentDepth = startParams.depth + (finishParams.depth - startParams.depth) * progress;
-        const currentRate = startParams.rate + (finishParams.rate - startParams.rate) * progress;
-        const currentBpm = startParams.bpm + (finishParams.bpm - startParams.bpm) * progress;
-
-        frequencySlider.value = currentFreq;
-        depthSlider.value = currentDepth;
-        rateSlider.value = currentRate;
-        bpmSlider.value = currentBpm;
-        updateParameterDisplays();
-
-        automationAnimationFrame = requestAnimationFrame(() => {
-            updateAutomationUI(startTime, endTime, startParams, finishParams);
-        });
-    } else {
-        frequencySlider.value = finishParams.frequency;
-        depthSlider.value = finishParams.depth;
-        rateSlider.value = finishParams.rate;
-        bpmSlider.value = finishParams.bpm;
-        updateParameterDisplays();
-        cancelAnimationFrame(automationAnimationFrame);
-    }
-}
-
-function cleanupMetronome() {
-    clearInterval(fixedMetronomeInterval);
-    fixedMetronomeInterval = null;
-
-    scheduledAnimatedClicks.forEach(click => {
-        try { click.osc.cancelScheduledValues?.(0); } catch(e){}
-        try { click.osc.stop(); } catch(e){}
-        try { click.osc.disconnect(); } catch(e){}
-        try { click.gain.disconnect(); } catch(e){}
+        isPlaying = true;
+        updatePlayButtonState();
     });
+}
+
+function stopSound() {
+    if (!isPlaying || !gainNode) return;
     
-    if (metronomeGainNode) {
-        try { metronomeGainNode.disconnect(); } catch (e) {}
-        metronomeGainNode = null;
-    }
-    scheduledAnimatedClicks = [];
-}
-
-function smoothStopOscillator(callback = () => {}) {
-    if (!isPlaying || !gainNode || !vibratoWorkletNode) {
-        callback();
-        return;
-    }
-    const stopTime = audioContext.currentTime + 0.1;
-
-    try {
-        const now = audioContext.currentTime;
-        const params = vibratoWorkletNode.parameters;
-        params.get('baseFrequency').cancelScheduledValues(now);
-        params.get('depth').cancelScheduledValues(now);
-        params.get('rate').cancelScheduledValues(now);
-    } catch (e) { }
-
-    clearTimeout(automationCompletionTimer);
-    cancelAnimationFrame(automationAnimationFrame);
-
-    try {
-        const now = audioContext.currentTime;
-        gainNode.gain.cancelScheduledValues(now);
-        gainNode.gain.setValueAtTime(gainNode.gain.value, now);
-        gainNode.gain.linearRampToValueAtTime(0, stopTime);
-    } catch (e) { }
-
-    isPlaying = false;
-    playButton.textContent = "Play";
-    cleanupMetronome();
-
-    setTimeout(() => { 
-        vibratoWorkletNode = null;
-        gainNode = null;
-        callback(); 
-    }, 110);
-}
-
-function ensureMetronomeGainNode() {
-    if (!metronomeGainNode) {
-        metronomeGainNode = audioContext.createGain();
-        // --- SAFE METRONOME GAIN ---
-        // 0.25 mixes with 0.60 note to stay under 0.89 total (-1db)
-        metronomeGainNode.gain.value = 0.25; 
-        metronomeGainNode.connect(audioContext.destination);
-    }
-}
-
-function scheduleSingleClick(time) {
-    ensureMetronomeGainNode();
-    const clickOsc = audioContext.createOscillator();
-    const clickGain = audioContext.createGain();
-    clickOsc.type = 'sine';
-    clickOsc.frequency.setValueAtTime(1768, time);
-    clickGain.gain.setValueAtTime(1.0, time);
-    clickGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
-    clickOsc.connect(clickGain);
-    clickGain.connect(metronomeGainNode);
-    clickOsc.start(time);
-    clickOsc.stop(time + 0.05);
-    return { osc: clickOsc, gain: clickGain };
-}
-
-function startFixedBpmMetronome(startTime, bpm) {
-    if (!audioContext || audioContext.state !== 'running') return;
-    if (bpm <= 0) return;
-    cleanupMetronome();
-    const intervalSeconds = 60 / bpm;
-    let clickCount = 0;
-    let expectedTime = startTime;
-
-    function loop() {
-        const now = audioContext.currentTime;
-        const delay = (expectedTime - now) * 1000 - 10;
-
-        fixedMetronomeInterval = setTimeout(() => {
-            if (!isPlaying || !isMetronomeOn || audioContext.state !== 'running') {
-                cleanupMetronome();
-                return;
-            }
-            scheduleSingleClick(expectedTime);
-            clickCount++;
-            expectedTime = startTime + clickCount * intervalSeconds;
-            loop();
-        }, Math.max(0, delay));
-    }
-    loop();
-}
-
-function startAnimatedBpmMetronome(startTime, duration, startBpm, finishBpm) {
-     if (!audioContext || audioContext.state !== 'running') return;
-    cleanupMetronome();
-
-    if (duration <= 0 || startBpm <= 0) {
-        const effectiveBpm = startBpm > 0 ? startBpm : (finishBpm > 0 ? finishBpm : 60);
-        startFixedBpmMetronome(startTime, effectiveBpm);
-        return;
-    }
-
-    let currentClickTime = startTime;
-    const endTime = startTime + duration;
-    scheduledAnimatedClicks = [];
-
-    while (currentClickTime < endTime) {
-        const clickNodes = scheduleSingleClick(currentClickTime);
-        scheduledAnimatedClicks.push(clickNodes);
-
-        let relativeTime = Math.max(0, currentClickTime - startTime);
-        let progress = duration > 0 ? Math.min(1, relativeTime / duration) : 1;
-        let instantaneousBpm = startBpm + (finishBpm - startBpm) * progress;
-
-        if (instantaneousBpm <= 0.1) break;
-
-        let interval = 60 / instantaneousBpm;
-        currentClickTime += interval;
-    }
-}
-
-function semitonesToFrequency(semitones) {
-    const referenceFrequency = 442;
-    return referenceFrequency * Math.pow(2, semitones / 12);
-}
-
-function frequencyToNoteLabel(frequency) {
-    const noteNames = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
-    const refFreq = 442;
-    const refMidi = 69;
-    const midiNote = Math.round(12 * Math.log2(frequency / refFreq)) + refMidi;
-    if (isNaN(midiNote) || !isFinite(midiNote) || midiNote < 0) return "---";
-
-    let noteIndex = (midiNote - 21 + 1200) % 12;
-    const octave = Math.floor((midiNote - 12) / 12);
-    if (isNaN(noteIndex) || noteIndex < 0 || noteIndex >= noteNames.length || isNaN(octave)) return "---";
-    return noteNames[noteIndex] + octave;
-}
-
-function updateParameters(setImmediately = false, scheduleTimeOverride = null) {
-    if (!audioContext || audioContext.state !== 'running' || !vibratoWorkletNode) {
-        updateParameterDisplays();
-        return;
-    }
-
-    if (isPlaying && isStartRecorded && isFinishRecorded && !setImmediately) {
-         updateParameterDisplays();
-         return;
-    }
-
-    const semitones = parseFloat(frequencySlider.value);
-    const baseFrequency = semitonesToFrequency(semitones);
-    const depthValue = parseFloat(depthSlider.value);
-    const rateSliderValue = parseFloat(rateSlider.value);
-    const bpm = parseFloat(bpmSlider.value);
-
-    const rate = rateSliderValue * (bpm / 60);
-
     const now = audioContext.currentTime;
-    const scheduleTime = setImmediately
-        ? (scheduleTimeOverride !== null ? scheduleTimeOverride : now)
-        : now + parameterRampTime;
+    gainNode.gain.cancelScheduledValues(now);
+    gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+    gainNode.gain.linearRampToValueAtTime(0, now + FADE_TIME);
 
-    const params = vibratoWorkletNode.parameters;
-    try {
-        if (params.get('baseFrequency')) {
-            if (setImmediately) {
-                params.get('baseFrequency').setValueAtTime(baseFrequency, scheduleTime);
-            } else {
-                params.get('baseFrequency').cancelScheduledValues(now);
-                params.get('baseFrequency').setValueAtTime(params.get('baseFrequency').value, now);
-                params.get('baseFrequency').linearRampToValueAtTime(baseFrequency, scheduleTime);
-            }
+    setTimeout(() => {
+        if (vibratoNode) { 
+            vibratoNode.disconnect(); 
+            vibratoNode = null;
         }
-        if (params.get('depth')) {
-             if (setImmediately) {
-                params.get('depth').setValueAtTime(depthValue, scheduleTime);
-            } else {
-                params.get('depth').cancelScheduledValues(now);
-                params.get('depth').setValueAtTime(params.get('depth').value, now);
-                params.get('depth').linearRampToValueAtTime(depthValue, scheduleTime);
-            }
+        isPlaying = false;
+        updatePlayButtonState();
+    }, (FADE_TIME * 1000) + 50);
+}
+
+function updatePlayButtonState() {
+    if (isPlaying) {
+        listenBtn.classList.add('playing');
+        iconPlay.style.display = 'none';
+        iconStop.style.display = 'block';
+    } else {
+        listenBtn.classList.remove('playing');
+        iconPlay.style.display = 'block';
+        iconStop.style.display = 'none';
+    }
+}
+
+// --- GAME LOGIC ---
+
+function updateHighScoresDisplay() {
+    highscoreList.innerHTML = highScores
+        .map(score => `<li>${score} pts</li>`)
+        .join('');
+}
+
+function getRandom(min, max, decimals = 0) {
+    const val = Math.random() * (max - min) + min;
+    return parseFloat(val.toFixed(decimals));
+}
+
+function generateTarget() {
+    // Speed: 4 to 7 Hz
+    const rate = getRandom(4, 7, 1);
+    // Amplitude: 11 to 44 cents
+    const depth = getRandom(11, 44, 0);
+    return { rate, depth };
+}
+
+function generateOptions(target, difficulty) {
+    let opts = [target];
+    
+    // Define deviations based on difficulty
+    let rateDev, depthDev;
+    
+    if (difficulty === 'easy') {
+        rateDev = 1.5; // Big difference
+        depthDev = 15;
+    } else if (difficulty === 'medium') {
+        rateDev = 0.8;
+        depthDev = 8;
+    } else { // Hard
+        rateDev = 0.3; // Very subtle
+        depthDev = 4;
+    }
+
+    // Generate 2 wrong answers
+    for (let i = 0; i < 2; i++) {
+        let newOpt;
+        let valid = false;
+        let attempts = 0;
+
+        while (!valid && attempts < 20) {
+            attempts++;
+            // Flip a coin to deviate positive or negative
+            const rDir = Math.random() > 0.5 ? 1 : -1;
+            const dDir = Math.random() > 0.5 ? 1 : -1;
+
+            // Add some jitter to the deviation so it's not always exactly the same distance
+            const rJitter = (Math.random() * 0.4) - 0.2; 
+            const dJitter = Math.floor(Math.random() * 4) - 2;
+
+            let r = parseFloat((target.rate + (rateDev + rJitter) * rDir).toFixed(1));
+            let d = Math.round(target.depth + (depthDev + dJitter) * dDir);
+
+            // Clamp values
+            if (r < 4) r = 4; if (r > 7) r = 7;
+            if (d < 11) d = 11; if (d > 44) d = 44;
+
+            newOpt = { rate: r, depth: d };
+
+            // Ensure uniqueness against existing options
+            const exists = opts.some(o => o.rate === newOpt.rate && o.depth === newOpt.depth);
+            
+            // Also ensure it's not TOO close to target in Hard mode (otherwise it's unfair)
+            const tooClose = Math.abs(newOpt.rate - target.rate) < 0.1 && Math.abs(newOpt.depth - target.depth) < 2;
+
+            if (!exists && !tooClose) valid = true;
         }
-        if (params.get('rate')) {
-             if (setImmediately) {
-                params.get('rate').setValueAtTime(rate, scheduleTime);
-            } else {
-                params.get('rate').cancelScheduledValues(now);
-                params.get('rate').setValueAtTime(params.get('rate').value, now);
-                params.get('rate').linearRampToValueAtTime(rate, scheduleTime);
-            }
-        }
+        opts.push(newOpt);
+    }
+
+    // Shuffle options
+    return opts.sort(() => Math.random() - 0.5);
+}
+
+function startRound() {
+    stopSound();
+    gameState = 'playing';
+    targetValues = generateTarget();
+    currentOptions = generateOptions(targetValues, currentDifficulty);
+    
+    roundDisplay.textContent = `Round: ${currentRound}/${MAX_ROUNDS}`;
+    scoreDisplay.textContent = `Score: ${currentScore}`;
+    
+    renderOptions();
+}
+
+function renderOptions() {
+    optionsContainer.innerHTML = '';
+    currentOptions.forEach((opt, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.textContent = `Speed: ${opt.rate} Hz | Amp: ${opt.depth} cents`;
+        btn.onclick = () => handleGuess(opt);
+        optionsContainer.appendChild(btn);
+    });
+}
+
+function handleGuess(selectedOption) {
+    stopSound();
+    
+    const isCorrect = (selectedOption.rate === targetValues.rate && selectedOption.depth === targetValues.depth);
+    
+    // Prepare Feedback
+    overlay.className = 'overlay visible';
+    if (isCorrect) {
+        overlay.classList.add('correct');
+        overlay.classList.remove('wrong');
+        feedbackTitle.textContent = "Correct!";
         
-        // --- NO GAIN UPDATES HERE ---
-        // Gain stays constant at 0.60, as requested.
-
-    } catch (e) {
-        console.error("Error updating audio parameters:", e);
-    }
-    updateParameterDisplays();
-}
-
-function updateParameterDisplays() {
-    try {
-        const semitones = parseFloat(frequencySlider.value);
-        const frequency = semitonesToFrequency(semitones);
-        frequencyValueSpan.textContent = frequencyToNoteLabel(frequency);
-        depthValueSpan.textContent = depthSlider.value;
-        rateValueSpan.textContent = parseFloat(rateSlider.value).toFixed(1);
-        bpmValueSpan.textContent = bpmSlider.value;
-        automationDurationValueSpan.textContent = automationDurationSlider.value + 's';
-    } catch (e) { }
-}
-
-function setupContinuousAdjustment(buttonId, inputId, step, requiresRestart = false) {
-    const button = document.getElementById(buttonId);
-    const input = document.getElementById(inputId);
-    let interval, timeout;
-    let isActive = false;
-
-    function startAdjustment(event) {
-        if (event.type === 'touchstart') event.preventDefault();
-        isActive = true;
-        if (isPlaying && isStartRecorded && isFinishRecorded) {
-            isActive = false;
-            return;
-        }
-        adjustValue();
-        timeout = setTimeout(() => {
-            if (isActive) interval = setInterval(adjustValue, 100);
-        }, 500);
-    }
-
-    function stopAdjustment() {
-        isActive = false;
-        clearTimeout(timeout);
-        clearInterval(interval);
-    }
-
-    function adjustValue() {
-        if (!isActive || (isPlaying && isStartRecorded && isFinishRecorded)) {
-            stopAdjustment();
-            return;
-        }
-        const current = parseFloat(input.value);
-        const min = parseFloat(input.min);
-        const max = parseFloat(input.max);
-        let newValue = current + step;
-        newValue = Math.min(max, Math.max(min, newValue));
-
-        if (Math.abs(step) < 1) {
-            const dp = (step.toString().split('.')[1] || '').length;
-            if (dp > 0) newValue = parseFloat(newValue.toFixed(dp));
-        }
-
-        if (newValue !== current) {
-            input.value = newValue;
-            updateParameters();
-             if (requiresRestart && isPlaying && isMetronomeOn) startOscillator();
-        }
-    }
-
-    button.addEventListener('mousedown', startAdjustment);
-    button.addEventListener('mouseup', stopAdjustment);
-    button.addEventListener('mouseleave', stopAdjustment);
-    button.addEventListener('touchstart', startAdjustment, { passive: false });
-    button.addEventListener('touchend', stopAdjustment);
-    button.addEventListener('touchcancel', stopAdjustment);
-}
-
-setupContinuousAdjustment('frequency-plus', 'frequency', 1);
-setupContinuousAdjustment('frequency-minus', 'frequency', -1);
-setupContinuousAdjustment('depth-plus', 'depth', 1);
-setupContinuousAdjustment('depth-minus', 'depth', -1);
-setupContinuousAdjustment('rate-plus', 'rate', 0.1, true);
-setupContinuousAdjustment('rate-minus', 'rate', -0.1, true);
-setupContinuousAdjustment('bpm-plus', 'bpm', 1, true);
-setupContinuousAdjustment('bpm-minus', 'bpm', -1, true);
-
-playButton.addEventListener('click', async () => {
-    await resumeAudioContext();
-    if (!isPlaying) startOscillator();
-    else smoothStopOscillator();
-});
-
-metronomeButton.addEventListener('click', async () => {
-    await resumeAudioContext();
-    isMetronomeOn = !isMetronomeOn;
-    metronomeButton.textContent = isMetronomeOn ? "Metronome Off" : "Metronome On";
-    if (isPlaying) startOscillator();
-    else if (!isMetronomeOn) cleanupMetronome();
-});
-
-frequencySlider.addEventListener('input', () => updateParameters());
-depthSlider.addEventListener('input', () => updateParameters());
-
-rateSlider.addEventListener('input', () => {
-    if (isPlaying && isStartRecorded && isFinishRecorded) {
-        updateParameterDisplays();
-        return;
-    }
-    updateParameters();
-    if (isPlaying && isMetronomeOn) startOscillator();
-});
-
-bpmSlider.addEventListener('input', () => {
-     if (isPlaying && isStartRecorded && isFinishRecorded) {
-        updateParameterDisplays();
-        return;
-    }
-    updateParameters();
-    if (isPlaying && isMetronomeOn) startOscillator();
-});
-
-automationDurationSlider.addEventListener('input', () => updateParameterDisplays());
-
-automationStartButton.addEventListener('click', () => {
-    if (isStartRecorded) {
-        startParams = null;
-        isStartRecorded = false;
-        automationStartButton.classList.remove('automation-active');
-        automationFinishButton.classList.toggle('automation-active', isFinishRecorded);
+        // Calculate Score based on difficulty
+        let points = 10;
+        if (currentDifficulty === 'medium') points = 20;
+        if (currentDifficulty === 'hard') points = 30;
+        currentScore += points;
+        
+        // Nice Message
+        const praises = ["Excellent ear!", "Spot on!", "Perfect pitch perception!", "Great job!"];
+        feedbackMessage.textContent = praises[Math.floor(Math.random() * praises.length)];
     } else {
-        startParams = {
-            frequency: parseFloat(frequencySlider.value),
-            depth: parseFloat(depthSlider.value),
-            rate: parseFloat(rateSlider.value),
-            bpm: parseFloat(bpmSlider.value)
-        };
-        isStartRecorded = true;
-        automationStartButton.classList.add('automation-active');
-        if (isFinishRecorded) automationFinishButton.classList.add('automation-active');
+        overlay.classList.add('wrong');
+        overlay.classList.remove('correct');
+        feedbackTitle.textContent = "Wrong Answer";
+        feedbackMessage.innerHTML = `The correct setting was:<br><strong>${targetValues.rate} Hz / ${targetValues.depth} cents</strong>`;
     }
-});
 
-automationFinishButton.addEventListener('click', () => {
-    if (isFinishRecorded) {
-        finishParams = null;
-        isFinishRecorded = false;
-        automationFinishButton.classList.remove('automation-active');
-        automationStartButton.classList.toggle('automation-active', isStartRecorded);
+    scoreDisplay.textContent = `Score: ${currentScore}`;
+
+    if (currentRound >= MAX_ROUNDS) {
+        nextRoundBtn.textContent = "Finish Game";
+        gameState = 'gameover';
     } else {
-        finishParams = {
-            frequency: parseFloat(frequencySlider.value),
-            depth: parseFloat(depthSlider.value),
-            rate: parseFloat(rateSlider.value),
-            bpm: parseFloat(bpmSlider.value)
-        };
-        isFinishRecorded = true;
-        automationFinishButton.classList.add('automation-active');
-        if (isStartRecorded) automationStartButton.classList.add('automation-active');
+        nextRoundBtn.textContent = "Next Round";
+        gameState = 'feedback';
+    }
+}
+
+function endGame() {
+    overlay.className = 'overlay visible correct'; // Use correct style for clean look
+    feedbackTitle.textContent = "Game Over!";
+    
+    let msg = `Final Score: ${currentScore}<br>`;
+    
+    // Check High Score
+    const lowestHigh = highScores[2];
+    if (currentScore > lowestHigh) {
+        highScores.push(currentScore);
+        highScores.sort((a, b) => b - a);
+        highScores = highScores.slice(0, 3);
+        localStorage.setItem('vibratoHighScores', JSON.stringify(highScores));
+        msg += `<br><span class="new-record">🏆 NEW RECORD! 🏆</span>`;
+    }
+    
+    feedbackMessage.innerHTML = msg;
+    nextRoundBtn.textContent = "Play Again";
+    updateHighScoresDisplay();
+}
+
+function restartGame() {
+    currentRound = 1;
+    currentScore = 0;
+    currentDifficulty = difficultySelect.value;
+    difficultyLabel.textContent = `Difficulty: ${currentDifficulty.charAt(0).toUpperCase() + currentDifficulty.slice(1)}`;
+    overlay.classList.remove('visible');
+    startRound();
+}
+
+// --- EVENT LISTENERS ---
+
+listenBtn.addEventListener('click', () => {
+    // Need user gesture to start AudioContext
+    playSound();
+});
+
+nextRoundBtn.addEventListener('click', () => {
+    if (gameState === 'gameover') {
+        restartGame();
+    } else if (currentRound < MAX_ROUNDS) {
+        currentRound++;
+        overlay.classList.remove('visible');
+        startRound();
+    } else {
+        endGame();
     }
 });
 
-document.addEventListener('visibilitychange', handleVisibilityChange);
-window.addEventListener('beforeunload', cleanupAllResources);
-window.addEventListener('pagehide', cleanupAllResources);
+restartBtn.addEventListener('click', () => {
+    stopSound();
+    restartGame();
+});
 
-updateParameterDisplays();
+difficultySelect.addEventListener('change', () => {
+    // If they change difficulty mid-game, restart game
+    stopSound();
+    restartGame();
+});
+
+// Initialize
+updateHighScoresDisplay();
+startRound();
 
 </script>
 </body>
