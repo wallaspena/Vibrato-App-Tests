@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibrato Oscillator (Cosine Volume)</title>
+<title>Vibrato Oscillator (Flat Volume - Safety Limit)</title>
 <style>
     /* --- Styles copied directly from App 2 --- */
     label, input { display: block; margin-bottom: 10px; }
@@ -173,8 +173,11 @@ let automationStartTime = 0;
 const parameterRampTime = 0.125;
 const SYNC_DELAY = 0.1;
 
-// --- Gain Ceiling Constant ---
-const MASTER_GAIN_REF = 0.65; 
+// --- CONSTANT GAIN SETTINGS ---
+// Note Gain: 0.60
+// Click Gain: 0.25
+// Total Sum: 0.85 (approx -1.4 dB). Completely safe from clipping.
+const FIXED_NOTE_GAIN = 0.60;
 
 const frequencySlider = document.getElementById('frequency');
 const depthSlider = document.getElementById('depth');
@@ -275,7 +278,6 @@ async function startOscillatorLogic() {
     // Send the Sync Timestamp to the Worklet
     vibratoWorkletNode.port.postMessage({ startTime: startTime });
 
-    // Determine starting frequency to calculate initial Loudness Compensation
     let startFreqHz;
     if (isStartRecorded && isFinishRecorded) {
         startFreqHz = semitonesToFrequency(startParams.frequency);
@@ -382,12 +384,10 @@ async function startOscillatorLogic() {
     isPlaying = true;
     playButton.textContent = "Pause";
     
-    // --- LOUDNESS NORMALIZATION FIX ---
-    // Calculate volume boost based on the starting frequency
-    const targetGain = MASTER_GAIN_REF * getLoudnessNormalization(startFreqHz);
-    
+    // --- FLAT VOLUME (FIXED GAIN) ---
+    // No dynamic adjustment. Just a safe, constant volume.
     gainNode.gain.setValueAtTime(0, startTime);
-    gainNode.gain.linearRampToValueAtTime(targetGain, startTime + 0.05);
+    gainNode.gain.linearRampToValueAtTime(FIXED_NOTE_GAIN, startTime + 0.05);
 }
 
 function updateAutomationUI(startTime, endTime, startParams, finishParams) {
@@ -477,7 +477,9 @@ function smoothStopOscillator(callback = () => {}) {
 function ensureMetronomeGainNode() {
     if (!metronomeGainNode) {
         metronomeGainNode = audioContext.createGain();
-        metronomeGainNode.gain.value = 0.25;
+        // --- SAFE METRONOME GAIN ---
+        // 0.25 mixes with 0.60 note to stay under 0.89 total (-1db)
+        metronomeGainNode.gain.value = 0.25; 
         metronomeGainNode.connect(audioContext.destination);
     }
 }
@@ -570,30 +572,6 @@ function frequencyToNoteLabel(frequency) {
     return noteNames[noteIndex] + octave;
 }
 
-// --- NEW FUNCTION: COSINE LOUDNESS COMPENSATION ---
-// This fills the "scoop" by keeping the volume high in the middle frequencies.
-function getLoudnessNormalization(frequency) {
-    const a4 = 442;
-    const maxSemitones = 12; 
-    let semitones = 12 * Math.log2(frequency / a4);
-    semitones = Math.max(0, Math.min(maxSemitones, semitones));
-
-    // Calculate progress (0.0 to 1.0)
-    const t = semitones / maxSemitones; 
-
-    // Constants
-    const boostStart = 1.45; // Start High (A4)
-    const boostEnd = 1.0;    // End Normal (A5)
-
-    // COSINE INTERPOLATION (Equal Power Curve)
-    // Formula: End + (Start - End) * Cos(t * PI/2)
-    // This creates a convex bulge, keeping mid-range louder.
-    const cosineFactor = Math.cos(t * (Math.PI / 2));
-    const gain = boostEnd + (boostStart - boostEnd) * cosineFactor;
-
-    return gain;
-}
-
 function updateParameters(setImmediately = false, scheduleTimeOverride = null) {
     if (!audioContext || audioContext.state !== 'running' || !vibratoWorkletNode) {
         updateParameterDisplays();
@@ -648,11 +626,8 @@ function updateParameters(setImmediately = false, scheduleTimeOverride = null) {
             }
         }
         
-        // --- LOUDNESS UPDATE FOR SLIDERS ---
-        if (gainNode && isPlaying) {
-            const normalizedGain = MASTER_GAIN_REF * getLoudnessNormalization(baseFrequency);
-            gainNode.gain.setTargetAtTime(normalizedGain, now, 0.1);
-        }
+        // --- NO GAIN UPDATES HERE ---
+        // Gain stays constant at 0.60, as requested.
 
     } catch (e) {
         console.error("Error updating audio parameters:", e);
