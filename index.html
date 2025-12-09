@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibrato Oscillator with Animating Metronome</title>
+<style>
+    /* --- Styles copied directly from App 2 --- */
+    label, input { display: block; margin-bottom: 10px; }
+    body { display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; box-sizing: border-box; }
+    [type=range] { appearance: none; display: block; background-color: rgb(255, 255, 255); box-shadow: 0 0 2px black; padding: 4px; width: 150px; cursor: pointer; }
+    [type=range]::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; border-radius: 1em; background-color: black; cursor: pointer; }
+    .unit-symbol { display: none; }
+    #toggle-play, #toggle-metronome { padding: 10px 15px; font-size: 14px; border-radius: 5px; background-color: #000000; color: white; border: 1px solid #ccc; cursor: pointer; margin-top: 15px; min-width: 120px; text-align: center; }
+    #toggle-play:hover, #toggle-metronome:hover { background-color: #333333; }
+    .param-control { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .param-control button { padding: 0; font-size: 14px; font-weight: bold; border-radius: 5px; background-color: white; border: 1px solid #ccc; cursor: pointer; color: black; height: 30px; width: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-sizing: border-box; }
+    .param-control input[type="range"] { margin: 0; }
+    .automation-active { background-color: #cccccc !important; color: #555555 !important; }
+    label { font-weight: bold; font-size: 0.9em; color: #333; margin-bottom: 5px; }
+    label span:first-of-type { font-weight: normal; color: #555; display: inline-block; min-width: 40px; }
+</style>
+</head>
+<body>
+<div class="controls-container">
+    <div>
+        <label for="frequency">Frequency: <span id="frequency-value">A4</span></label>
+        <div class="param-control">
+            <input type="range" id="frequency" min="-33" max="15" value="0" step="1">
+            <button id="frequency-minus">-</button>
+            <button id="frequency-plus">+</button>
+        </div>
+    </div>
+
+    <div>
+        <label for="depth">Amplitude: <span id="depth-value">50</span> <span class="unit-symbol">%</span></label>
+        <div class="param-control">
+            <input type="range" id="depth" min="0" max="100" value="50" step="1">
+            <button id="depth-minus">-</button>
+            <button id="depth-plus">+</button>
+        </div>
+    </div>
+
+    <div>
+        <label for="rate">Speed: <span id="rate-value">5.0</span> <span class="unit-symbol">%</span></label>
+        <div class="param-control">
+            <input type="range" id="rate" min="4" max="8" value="5" step="0.1">
+            <button id="rate-minus">-</button>
+            <button id="rate-plus">+</button>
+        </div>
+    </div>
+
+    <div>
+        <label for="bpm">Metronome: <span id="bpm-value">60</span></label>
+        <div class="param-control">
+            <input type="range" id="bpm" min="45" max="120" value="60" step="1">
+            <button id="bpm-minus">-</button>
+            <button id="bpm-plus">+</button>
+        </div>
+    </div>
+
+    <div>
+        <label for="automationDuration">Automation: <span id="automationDuration-value">5s</span></label>
+        <div class="param-control">
+            <input type="range" id="automationDuration" min="0" max="10" value="4" step="1">
+            <button id="automation-start" title="Record Start Parameters">1</button>
+            <button id="automation-finish" title="Record Finish Parameters">2</button>
+            <button id="direct-mode" title="Direct Mode (Jump Start, Smooth End)">D</button>
+        </div>
+    </div>
+
+    <button id="toggle-play">Play</button>
+    <button id="toggle-metronome">Metronome On</button>
+</div>
+
+<script>
+// --- 1. DEFINE PROCESSOR CODE WITH SYNC FIXES ---
+const workletCode = `
+class VibratoProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: 'baseFrequency', defaultValue: 442, minValue: 20, maxValue: 20000, automationRate: 'a-rate' },
+      { name: 'depth', defaultValue: 50, minValue: 0, maxValue: 200, automationRate: 'a-rate' },
+      { name: 'rate', defaultValue: 5.0, minValue: 0.1, maxValue: 20, automationRate: 'a-rate' }
+    ];
+  }
+
+  constructor() {
+    super();
+    this.carrierPhase = 0;
+    this.lfoPhase = 0;
+    this.previousInstantaneousFreq = 0;
+    
+    // Initialize Sync State
+    this.startTime = -1;
+    this.port.onmessage = (e) => {
+      if (e.data.startTime !== undefined) {
+        this.startTime = e.data.startTime;
+      }
+    };
+  }
+
+  process(inputs, outputs, parameters) {
+    const output = outputs[0];
+    const outputChannel = output[0];
+    const bufferLength = outputChannel.length;
+    
+    // Wait for Start Time for perfect phase alignment
+    if (this.startTime !== -1 && currentTime < this.startTime) {
+        outputChannel.fill(0);
+        return true;
+    }
+
+    const baseFreqParams = parameters.baseFrequency;
+    const depthParams = parameters.depth;
+    const rateParams = parameters.rate;
+    const twoPi = 2 * Math.PI;
+    const inverseSampleRate = 1 / sampleRate;
+
+    for (let i = 0; i < bufferLength; ++i) {
+      const currentBaseFreq = baseFreqParams.length > 1 ? baseFreqParams[i] : baseFreqParams[0];
+      const currentDepth = depthParams.length > 1 ? depthParams[i] : depthParams[0];
+      const currentRate = rateParams.length > 1 ? rateParams[i] : rateParams[0];
+
+      // Dynamic Calibration
+      const calibrationFactor = 1.0 + (currentRate * 0.005);
+      const effectiveDepth = currentDepth * calibrationFactor;
+
+      const lfoValue = Math.sin(this.lfoPhase * twoPi);
+
+      const centsShift = lfoValue * effectiveDepth;
+      const frequencyMultiplier = Math.pow(2, centsShift / 1200);
+      const targetInstantaneousFreq = currentBaseFreq * frequencyMultiplier;
+
+      if (this.previousInstantaneousFreq === 0) {
+          this.previousInstantaneousFreq = targetInstantaneousFreq;
+      }
+      
+      const averageFreq = (this.previousInstantaneousFreq + targetInstantaneousFreq) / 2;
+      this.carrierPhase += averageFreq * inverseSampleRate;
+      this.previousInstantaneousFreq = targetInstantaneousFreq;
+
+      if (this.carrierPhase >= 1.0) this.carrierPhase -= 1.0;
+      
+      outputChannel[i] = Math.sin(this.carrierPhase * twoPi);
+
+      this.lfoPhase += currentRate * inverseSampleRate;
+      if (this.lfoPhase >= 1.0) this.lfoPhase -= 1.0;
+    }
+
+    return true;
+  }
+}
+registerProcessor('vibrato-processor', VibratoProcessor);
+`;
+
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+let vibratoWorkletNode, gainNode, metronomeGainNode;
+
+let isPlaying = false;
+let isMetronomeOn = false;
+let fixedMetronomeInterval = null;
+let scheduledAnimatedClicks = [];
+let startParams = null;
+let finishParams = null;
+let isStartRecorded = false;
+let isFinishRecorded = false;
+let automationCompletionTimer = null;
+let automationAnimationFrame = null;
+let automationStartTime = 0;
+
+const parameterRampTime = 0.125;
+const SYNC_DELAY = 0.1;
+
+const frequencySlider = document.getElementById('frequency');
+const depthSlider = document.getElementById('depth');
+const rateSlider = document.getElementById('rate');
+const bpmSlider = document.getElementById('bpm');
+const frequencyValueSpan = document.getElementById('frequency-value');
+const depthValueSpan = document.getElementById('depth-value');
+const rateValueSpan = document.getElementById('rate-value');
+const bpmValueSpan = document.getElementById('bpm-value');
+const playButton = document.getElementById('toggle-play');
+const metronomeButton = document.getElementById('toggle-metronome');
+const automationDurationSlider = document.getElementById('automationDuration');
+const automationDurationValueSpan = document.getElementById('automationDuration-value');
+const automationStartButton = document.getElementById('automation-start');
+const automationFinishButton = document.getElementById('automation-finish');
+const directModeButton = document.getElementById('direct-mode');
+
+let isDirectMode = false;
+
+directModeButton.addEventListener('click', () => {
+    isDirectMode = !isDirectMode;
+    directModeButton.classList.toggle('automation-active', isDirectMode);
+});
+
+async function resumeAudioContext() {
+    if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+    }
+}
+
+function cleanupAllResources() {
+    if (isPlaying) smoothStopOscillator();
+    if (audioContext && audioContext.state !== 'closed') audioContext.close().catch(() => {});
+    cleanupMetronome();
+    cancelAnimationFrame(automationAnimationFrame);
+    clearTimeout(automationCompletionTimer);
+    vibratoWorkletNode = null;
+    gainNode = null;
+    metronomeGainNode = null;
+    scheduledAnimatedClicks = [];
+}
+
+function handleVisibilityChange() {
+    if (document.hidden) {
+        if (isPlaying) smoothStopOscillator();
+        cleanupMetronome();
+    }
+}
+
+if ('oninterrupted' in audioContext) {
+    audioContext.oninterrupted = () => smoothStopOscillator();
+}
+
+if ('onstatechange' in audioContext) {
+    audioContext.onstatechange = () => {
+        if (audioContext.state === 'interrupted') smoothStopOscillator();
+    };
+}
+
+function createOscillator() {
+    if (vibratoWorkletNode) { try { vibratoWorkletNode.disconnect(); } catch (e) {} }
+    if (gainNode) { try { gainNode.disconnect(); } catch (e) {} }
+
+    vibratoWorkletNode = new AudioWorkletNode(audioContext, 'vibrato-processor');
+    gainNode = audioContext.createGain();
+    
+    vibratoWorkletNode.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+}
+
+function startOscillator() {
+    if (isPlaying) {
+        smoothStopOscillator(() => { startOscillatorLogic(); });
+    } else {
+        startOscillatorLogic();
+    }
+}
+
+async function startOscillatorLogic() {
+    // Load Worklet from Blob
+    if (!vibratoWorkletNode) {
+        try {
+            const blob = new Blob([workletCode], { type: 'application/javascript' });
+            const url = URL.createObjectURL(blob);
+            await audioContext.audioWorklet.addModule(url);
+        } catch (e) {
+            console.error("Failed to load AudioWorklet:", e);
+            return;
+        }
+    }
+    
+    createOscillator();
+    
+    const startTime = audioContext.currentTime + SYNC_DELAY;
+
+    // Send the Sync Timestamp to the Worklet
+    vibratoWorkletNode.port.postMessage({ startTime: startTime });
+
+    // Determine starting frequency to calculate initial Loudness Compensation
+    let startFreqHz;
+    if (isStartRecorded && isFinishRecorded) {
+        startFreqHz = semitonesToFrequency(startParams.frequency);
+    } else {
+        startFreqHz = semitonesToFrequency(parseFloat(frequencySlider.value));
+    }
+
+    let automationDuration = 0;
+
+    if (isStartRecorded && isFinishRecorded) {
+        automationDuration = parseFloat(automationDurationSlider.value);
+        if (automationDuration < 0) automationDuration = 0;
+        automationStartTime = startTime;
+
+        const startLfoFreq = startParams.rate * (startParams.bpm / 60);
+        const finishFreqHz = semitonesToFrequency(finishParams.frequency);
+        const finishLfoFreq = finishParams.rate * (finishParams.bpm / 60);
+
+        const endTime = startTime + automationDuration;
+
+        if (isDirectMode) {
+            const rampStartTime = Math.max(startTime, endTime - parameterRampTime);
+            const params = vibratoWorkletNode.parameters;
+            
+            params.get('baseFrequency').setValueAtTime(startFreqHz, startTime);
+            if (rampStartTime > startTime) params.get('baseFrequency').setValueAtTime(startFreqHz, rampStartTime);
+            params.get('baseFrequency').linearRampToValueAtTime(finishFreqHz, endTime);
+
+            params.get('depth').setValueAtTime(startParams.depth, startTime);
+            if (rampStartTime > startTime) params.get('depth').setValueAtTime(startParams.depth, rampStartTime);
+            params.get('depth').linearRampToValueAtTime(finishParams.depth, endTime);
+
+            params.get('rate').setValueAtTime(startLfoFreq, startTime);
+            if (rampStartTime > startTime) params.get('rate').setValueAtTime(startLfoFreq, rampStartTime);
+            params.get('rate').linearRampToValueAtTime(finishLfoFreq, endTime);
+
+            frequencySlider.value = startParams.frequency;
+            depthSlider.value = startParams.depth;
+            rateSlider.value = startParams.rate;
+            bpmSlider.value = startParams.bpm;
+            updateParameterDisplays();
+
+            clearTimeout(automationCompletionTimer);
+            automationCompletionTimer = setTimeout(() => {
+                if (isPlaying) {
+                    frequencySlider.value = finishParams.frequency;
+                    depthSlider.value = finishParams.depth;
+                    rateSlider.value = finishParams.rate;
+                    bpmSlider.value = finishParams.bpm;
+                    updateParameterDisplays();
+                    if (isMetronomeOn) {
+                        cleanupMetronome();
+                        startFixedBpmMetronome(audioContext.currentTime, finishParams.bpm);
+                    }
+                }
+            }, (automationDuration + SYNC_DELAY) * 1000 + 50);
+
+            if (isMetronomeOn) {
+                startFixedBpmMetronome(startTime, startParams.bpm);
+            }
+
+        } else {
+             const params = vibratoWorkletNode.parameters;
+             params.get('baseFrequency').setValueAtTime(startFreqHz, startTime);
+             params.get('depth').setValueAtTime(startParams.depth, startTime);
+             params.get('rate').setValueAtTime(startLfoFreq, startTime);
+
+            params.get('baseFrequency').linearRampToValueAtTime(finishFreqHz, endTime);
+            params.get('depth').linearRampToValueAtTime(finishParams.depth, endTime);
+            params.get('rate').linearRampToValueAtTime(finishLfoFreq, endTime);
+
+            frequencySlider.value = startParams.frequency;
+            depthSlider.value = startParams.depth;
+            rateSlider.value = startParams.rate;
+            bpmSlider.value = startParams.bpm;
+            updateParameterDisplays();
+
+            cancelAnimationFrame(automationAnimationFrame);
+            updateAutomationUI(startTime, endTime, startParams, finishParams);
+
+            clearTimeout(automationCompletionTimer);
+            automationCompletionTimer = setTimeout(() => {
+                if (isPlaying) {
+                    frequencySlider.value = finishParams.frequency;
+                    depthSlider.value = finishParams.depth;
+                    rateSlider.value = finishParams.rate;
+                    bpmSlider.value = finishParams.bpm;
+                    updateParameterDisplays();
+                }
+            }, (automationDuration + SYNC_DELAY) * 1000 + 50);
+
+            if (isMetronomeOn) {
+                startAnimatedBpmMetronome(startTime, automationDuration, startParams.bpm, finishParams.bpm);
+            }
+        }
+    } else {
+        updateParameters(true, startTime);
+        if (isMetronomeOn) {
+            const currentBpm = parseFloat(bpmSlider.value);
+            startFixedBpmMetronome(startTime, currentBpm);
+        }
+    }
+
+    isPlaying = true;
+    playButton.textContent = "Pause";
+    
+    // --- LOUDNESS NORMALIZATION FIX ---
+    // Calculate volume boost based on the starting frequency
+    const targetGain = 0.74 * getLoudnessNormalization(startFreqHz);
+    
+    gainNode.gain.setValueAtTime(0, startTime);
+    gainNode.gain.linearRampToValueAtTime(targetGain, startTime + 0.05);
+}
+
+function updateAutomationUI(startTime, endTime, startParams, finishParams) {
+    const now = audioContext.currentTime;
+    const duration = endTime - startTime;
+    const progress = duration > 0 ? Math.min(1, Math.max(0, (now - startTime) / duration)) : 1;
+
+    if (progress < 1) {
+        const currentFreq = startParams.frequency + (finishParams.frequency - startParams.frequency) * progress;
+        const currentDepth = startParams.depth + (finishParams.depth - startParams.depth) * progress;
+        const currentRate = startParams.rate + (finishParams.rate - startParams.rate) * progress;
+        const currentBpm = startParams.bpm + (finishParams.bpm - startParams.bpm) * progress;
+
+        frequencySlider.value = currentFreq;
+        depthSlider.value = currentDepth;
+        rateSlider.value = currentRate;
+        bpmSlider.value = currentBpm;
+        updateParameterDisplays();
+
+        automationAnimationFrame = requestAnimationFrame(() => {
+            updateAutomationUI(startTime, endTime, startParams, finishParams);
+        });
+    } else {
+        frequencySlider.value = finishParams.frequency;
+        depthSlider.value = finishParams.depth;
+        rateSlider.value = finishParams.rate;
+        bpmSlider.value = finishParams.bpm;
+        updateParameterDisplays();
+        cancelAnimationFrame(automationAnimationFrame);
+    }
+}
+
+function cleanupMetronome() {
+    clearInterval(fixedMetronomeInterval);
+    fixedMetronomeInterval = null;
+
+    scheduledAnimatedClicks.forEach(click => {
+        try { click.osc.cancelScheduledValues?.(0); } catch(e){}
+        try { click.osc.stop(); } catch(e){}
+        try { click.osc.disconnect(); } catch(e){}
+        try { click.gain.disconnect(); } catch(e){}
+    });
+    
+    if (metronomeGainNode) {
+        try { metronomeGainNode.disconnect(); } catch (e) {}
+        metronomeGainNode = null;
+    }
+    scheduledAnimatedClicks = [];
+}
+
+function smoothStopOscillator(callback = () => {}) {
+    if (!isPlaying || !gainNode || !vibratoWorkletNode) {
+        callback();
+        return;
+    }
+    const stopTime = audioContext.currentTime + 0.1;
+
+    try {
+        const now = audioContext.currentTime;
+        const params = vibratoWorkletNode.parameters;
+        params.get('baseFrequency').cancelScheduledValues(now);
+        params.get('depth').cancelScheduledValues(now);
+        params.get('rate').cancelScheduledValues(now);
+    } catch (e) { }
+
+    clearTimeout(automationCompletionTimer);
+    cancelAnimationFrame(automationAnimationFrame);
+
+    try {
+        const now = audioContext.currentTime;
+        gainNode.gain.cancelScheduledValues(now);
+        gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+        gainNode.gain.linearRampToValueAtTime(0, stopTime);
+    } catch (e) { }
+
+    isPlaying = false;
+    playButton.textContent = "Play";
+    cleanupMetronome();
+
+    setTimeout(() => { 
+        vibratoWorkletNode = null;
+        gainNode = null;
+        callback(); 
+    }, 110);
+}
+
+function ensureMetronomeGainNode() {
+    if (!metronomeGainNode) {
+        metronomeGainNode = audioContext.createGain();
+        metronomeGainNode.gain.value = 0.25;
+        metronomeGainNode.connect(audioContext.destination);
+    }
+}
+
+function scheduleSingleClick(time) {
+    ensureMetronomeGainNode();
+    const clickOsc = audioContext.createOscillator();
+    const clickGain = audioContext.createGain();
+    clickOsc.type = 'sine';
+    clickOsc.frequency.setValueAtTime(1768, time);
+    clickGain.gain.setValueAtTime(1.0, time);
+    clickGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+    clickOsc.connect(clickGain);
+    clickGain.connect(metronomeGainNode);
+    clickOsc.start(time);
+    clickOsc.stop(time + 0.05);
+    return { osc: clickOsc, gain: clickGain };
+}
+
+function startFixedBpmMetronome(startTime, bpm) {
+    if (!audioContext || audioContext.state !== 'running') return;
+    if (bpm <= 0) return;
+    cleanupMetronome();
+    const intervalSeconds = 60 / bpm;
+    let clickCount = 0;
+    let expectedTime = startTime;
+
+    function loop() {
+        const now = audioContext.currentTime;
+        const delay = (expectedTime - now) * 1000 - 10;
+
+        fixedMetronomeInterval = setTimeout(() => {
+            if (!isPlaying || !isMetronomeOn || audioContext.state !== 'running') {
+                cleanupMetronome();
+                return;
+            }
+            scheduleSingleClick(expectedTime);
+            clickCount++;
+            expectedTime = startTime + clickCount * intervalSeconds;
+            loop();
+        }, Math.max(0, delay));
+    }
+    loop();
+}
+
+function startAnimatedBpmMetronome(startTime, duration, startBpm, finishBpm) {
+     if (!audioContext || audioContext.state !== 'running') return;
+    cleanupMetronome();
+
+    if (duration <= 0 || startBpm <= 0) {
+        const effectiveBpm = startBpm > 0 ? startBpm : (finishBpm > 0 ? finishBpm : 60);
+        startFixedBpmMetronome(startTime, effectiveBpm);
+        return;
+    }
+
+    let currentClickTime = startTime;
+    const endTime = startTime + duration;
+    scheduledAnimatedClicks = [];
+
+    while (currentClickTime < endTime) {
+        const clickNodes = scheduleSingleClick(currentClickTime);
+        scheduledAnimatedClicks.push(clickNodes);
+
+        let relativeTime = Math.max(0, currentClickTime - startTime);
+        let progress = duration > 0 ? Math.min(1, relativeTime / duration) : 1;
+        let instantaneousBpm = startBpm + (finishBpm - startBpm) * progress;
+
+        if (instantaneousBpm <= 0.1) break;
+
+        let interval = 60 / instantaneousBpm;
+        currentClickTime += interval;
+    }
+}
+
+function semitonesToFrequency(semitones) {
+    const referenceFrequency = 442;
+    return referenceFrequency * Math.pow(2, semitones / 12);
+}
+
+function frequencyToNoteLabel(frequency) {
+    const noteNames = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"];
+    const refFreq = 442;
+    const refMidi = 69;
+    const midiNote = Math.round(12 * Math.log2(frequency / refFreq)) + refMidi;
+    if (isNaN(midiNote) || !isFinite(midiNote) || midiNote < 0) return "---";
+
+    let noteIndex = (midiNote - 21 + 1200) % 12;
+    const octave = Math.floor((midiNote - 12) / 12);
+    if (isNaN(noteIndex) || noteIndex < 0 || noteIndex >= noteNames.length || isNaN(octave)) return "---";
+    return noteNames[noteIndex] + octave;
+}
+
+// --- NEW FUNCTION: Loudness Compensation ---
+function getLoudnessNormalization(frequency) {
+    // Points: [FreqHz, GainMultiplier]
+    // C2 (65Hz) = 2.6x boost
+    // C6 (1046Hz) = 1.0x (normal)
+    const points = [
+        { f: 60, m: 2.6 },
+        { f: 100, m: 2.0 },
+        { f: 261, m: 1.4 }, // C4
+        { f: 523, m: 1.1 }, // C5
+        { f: 1046, m: 1.0 } // C6
+    ];
+
+    if (frequency <= points[0].f) return points[0].m;
+    if (frequency >= points[points.length - 1].f) return points[points.length - 1].m;
+
+    for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        if (frequency >= p1.f && frequency <= p2.f) {
+            const t = (frequency - p1.f) / (p2.f - p1.f);
+            return p1.m + t * (p2.m - p1.m);
+        }
+    }
+    return 1.0;
+}
+
+function updateParameters(setImmediately = false, scheduleTimeOverride = null) {
+    if (!audioContext || audioContext.state !== 'running' || !vibratoWorkletNode) {
+        updateParameterDisplays();
+        return;
+    }
+
+    if (isPlaying && isStartRecorded && isFinishRecorded && !setImmediately) {
+         updateParameterDisplays();
+         return;
+    }
+
+    const semitones = parseFloat(frequencySlider.value);
+    const baseFrequency = semitonesToFrequency(semitones);
+    const depthValue = parseFloat(depthSlider.value);
+    const rateSliderValue = parseFloat(rateSlider.value);
+    const bpm = parseFloat(bpmSlider.value);
+
+    const rate = rateSliderValue * (bpm / 60);
+
+    const now = audioContext.currentTime;
+    const scheduleTime = setImmediately
+        ? (scheduleTimeOverride !== null ? scheduleTimeOverride : now)
+        : now + parameterRampTime;
+
+    const params = vibratoWorkletNode.parameters;
+    try {
+        if (params.get('baseFrequency')) {
+            if (setImmediately) {
+                params.get('baseFrequency').setValueAtTime(baseFrequency, scheduleTime);
+            } else {
+                params.get('baseFrequency').cancelScheduledValues(now);
+                params.get('baseFrequency').setValueAtTime(params.get('baseFrequency').value, now);
+                params.get('baseFrequency').linearRampToValueAtTime(baseFrequency, scheduleTime);
+            }
+        }
+        if (params.get('depth')) {
+             if (setImmediately) {
+                params.get('depth').setValueAtTime(depthValue, scheduleTime);
+            } else {
+                params.get('depth').cancelScheduledValues(now);
+                params.get('depth').setValueAtTime(params.get('depth').value, now);
+                params.get('depth').linearRampToValueAtTime(depthValue, scheduleTime);
+            }
+        }
+        if (params.get('rate')) {
+             if (setImmediately) {
+                params.get('rate').setValueAtTime(rate, scheduleTime);
+            } else {
+                params.get('rate').cancelScheduledValues(now);
+                params.get('rate').setValueAtTime(params.get('rate').value, now);
+                params.get('rate').linearRampToValueAtTime(rate, scheduleTime);
+            }
+        }
+        
+        // --- LOUDNESS UPDATE FOR SLIDERS ---
+        if (gainNode && isPlaying) {
+            const normalizedGain = 0.74 * getLoudnessNormalization(baseFrequency);
+            gainNode.gain.setTargetAtTime(normalizedGain, now, 0.1);
+        }
+
+    } catch (e) {
+        console.error("Error updating audio parameters:", e);
+    }
+    updateParameterDisplays();
+}
+
+function updateParameterDisplays() {
+    try {
+        const semitones = parseFloat(frequencySlider.value);
+        const frequency = semitonesToFrequency(semitones);
+        frequencyValueSpan.textContent = frequencyToNoteLabel(frequency);
+        depthValueSpan.textContent = depthSlider.value;
+        rateValueSpan.textContent = parseFloat(rateSlider.value).toFixed(1);
+        bpmValueSpan.textContent = bpmSlider.value;
+        automationDurationValueSpan.textContent = automationDurationSlider.value + 's';
+    } catch (e) { }
+}
+
+function setupContinuousAdjustment(buttonId, inputId, step, requiresRestart = false) {
+    const button = document.getElementById(buttonId);
+    const input = document.getElementById(inputId);
+    let interval, timeout;
+    let isActive = false;
+
+    function startAdjustment(event) {
+        if (event.type === 'touchstart') event.preventDefault();
+        isActive = true;
+        if (isPlaying && isStartRecorded && isFinishRecorded) {
+            isActive = false;
+            return;
+        }
+        adjustValue();
+        timeout = setTimeout(() => {
+            if (isActive) interval = setInterval(adjustValue, 100);
+        }, 500);
+    }
+
+    function stopAdjustment() {
+        isActive = false;
+        clearTimeout(timeout);
+        clearInterval(interval);
+    }
+
+    function adjustValue() {
+        if (!isActive || (isPlaying && isStartRecorded && isFinishRecorded)) {
+            stopAdjustment();
+            return;
+        }
+        const current = parseFloat(input.value);
+        const min = parseFloat(input.min);
+        const max = parseFloat(input.max);
+        let newValue = current + step;
+        newValue = Math.min(max, Math.max(min, newValue));
+
+        if (Math.abs(step) < 1) {
+            const dp = (step.toString().split('.')[1] || '').length;
+            if (dp > 0) newValue = parseFloat(newValue.toFixed(dp));
+        }
+
+        if (newValue !== current) {
+            input.value = newValue;
+            updateParameters();
+             if (requiresRestart && isPlaying && isMetronomeOn) startOscillator();
+        }
+    }
+
+    button.addEventListener('mousedown', startAdjustment);
+    button.addEventListener('mouseup', stopAdjustment);
+    button.addEventListener('mouseleave', stopAdjustment);
+    button.addEventListener('touchstart', startAdjustment, { passive: false });
+    button.addEventListener('touchend', stopAdjustment);
+    button.addEventListener('touchcancel', stopAdjustment);
+}
+
+setupContinuousAdjustment('frequency-plus', 'frequency', 1);
+setupContinuousAdjustment('frequency-minus', 'frequency', -1);
+setupContinuousAdjustment('depth-plus', 'depth', 1);
+setupContinuousAdjustment('depth-minus', 'depth', -1);
+setupContinuousAdjustment('rate-plus', 'rate', 0.1, true);
+setupContinuousAdjustment('rate-minus', 'rate', -0.1, true);
+setupContinuousAdjustment('bpm-plus', 'bpm', 1, true);
+setupContinuousAdjustment('bpm-minus', 'bpm', -1, true);
+
+playButton.addEventListener('click', async () => {
+    await resumeAudioContext();
+    if (!isPlaying) startOscillator();
+    else smoothStopOscillator();
+});
+
+metronomeButton.addEventListener('click', async () => {
+    await resumeAudioContext();
+    isMetronomeOn = !isMetronomeOn;
+    metronomeButton.textContent = isMetronomeOn ? "Metronome Off" : "Metronome On";
+    if (isPlaying) startOscillator();
+    else if (!isMetronomeOn) cleanupMetronome();
+});
+
+frequencySlider.addEventListener('input', () => updateParameters());
+depthSlider.addEventListener('input', () => updateParameters());
+
+rateSlider.addEventListener('input', () => {
+    if (isPlaying && isStartRecorded && isFinishRecorded) {
+        updateParameterDisplays();
+        return;
+    }
+    updateParameters();
+    if (isPlaying && isMetronomeOn) startOscillator();
+});
+
+bpmSlider.addEventListener('input', () => {
+     if (isPlaying && isStartRecorded && isFinishRecorded) {
+        updateParameterDisplays();
+        return;
+    }
+    updateParameters();
+    if (isPlaying && isMetronomeOn) startOscillator();
+});
+
+automationDurationSlider.addEventListener('input', () => updateParameterDisplays());
+
+automationStartButton.addEventListener('click', () => {
+    if (isStartRecorded) {
+        startParams = null;
+        isStartRecorded = false;
+        automationStartButton.classList.remove('automation-active');
+        automationFinishButton.classList.toggle('automation-active', isFinishRecorded);
+    } else {
+        startParams = {
+            frequency: parseFloat(frequencySlider.value),
+            depth: parseFloat(depthSlider.value),
+            rate: parseFloat(rateSlider.value),
+            bpm: parseFloat(bpmSlider.value)
+        };
+        isStartRecorded = true;
+        automationStartButton.classList.add('automation-active');
+        if (isFinishRecorded) automationFinishButton.classList.add('automation-active');
+    }
+});
+
+automationFinishButton.addEventListener('click', () => {
+    if (isFinishRecorded) {
+        finishParams = null;
+        isFinishRecorded = false;
+        automationFinishButton.classList.remove('automation-active');
+        automationStartButton.classList.toggle('automation-active', isStartRecorded);
+    } else {
+        finishParams = {
+            frequency: parseFloat(frequencySlider.value),
+            depth: parseFloat(depthSlider.value),
+            rate: parseFloat(rateSlider.value),
+            bpm: parseFloat(bpmSlider.value)
+        };
+        isFinishRecorded = true;
+        automationFinishButton.classList.add('automation-active');
+        if (isStartRecorded) automationStartButton.classList.add('automation-active');
+    }
+});
+
+document.addEventListener('visibilitychange', handleVisibilityChange);
+window.addEventListener('beforeunload', cleanupAllResources);
+window.addEventListener('pagehide', cleanupAllResources);
+
+updateParameterDisplays();
+
+</script>
+</body>
+</html>
