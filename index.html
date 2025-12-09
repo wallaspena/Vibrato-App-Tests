@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibrato Oscillator with Animating Metronome</title>
+<title>Vibrato Oscillator (Continuous Volume)</title>
 <style>
     /* --- Styles copied directly from App 2 --- */
     label, input { display: block; margin-bottom: 10px; }
@@ -24,9 +24,10 @@
 <body>
 <div class="controls-container">
     <div>
-        <label for="frequency">Frequency4: <span id="frequency-value">A4</span></label>
+        <label for="frequency">Frequency: <span id="frequency-value">A4</span></label>
         <div class="param-control">
-            <input type="range" id="frequency" min="-0" max="12" value="0" step="1">
+            <!-- OPTIMAL PHONE RANGE: 0 (A4) to 12 (A5) -->
+            <input type="range" id="frequency" min="0" max="12" value="0" step="1">
             <button id="frequency-minus">-</button>
             <button id="frequency-plus">+</button>
         </div>
@@ -91,7 +92,7 @@ class VibratoProcessor extends AudioWorkletProcessor {
     this.lfoPhase = 0;
     this.previousInstantaneousFreq = 0;
     
-    // --- FIX PART A: Initialize Sync State ---
+    // Initialize Sync State
     this.startTime = -1;
     this.port.onmessage = (e) => {
       if (e.data.startTime !== undefined) {
@@ -105,8 +106,7 @@ class VibratoProcessor extends AudioWorkletProcessor {
     const outputChannel = output[0];
     const bufferLength = outputChannel.length;
     
-    // --- FIX PART B: Wait for Start Time ---
-    // If we haven't reached the start time, output silence and DO NOT advance phase.
+    // Wait for Start Time for perfect phase alignment
     if (this.startTime !== -1 && currentTime < this.startTime) {
         outputChannel.fill(0);
         return true;
@@ -171,7 +171,10 @@ let automationAnimationFrame = null;
 let automationStartTime = 0;
 
 const parameterRampTime = 0.125;
-const SYNC_DELAY = 0.1; // This delay now ensures perfect phase alignment
+const SYNC_DELAY = 0.1;
+
+// --- Gain Ceiling Constant ---
+const MASTER_GAIN_REF = 0.65; 
 
 const frequencySlider = document.getElementById('frequency');
 const depthSlider = document.getElementById('depth');
@@ -253,7 +256,7 @@ function startOscillator() {
 }
 
 async function startOscillatorLogic() {
-    // Load Worklet from Blob to act as a single file
+    // Load Worklet from Blob
     if (!vibratoWorkletNode) {
         try {
             const blob = new Blob([workletCode], { type: 'application/javascript' });
@@ -269,9 +272,16 @@ async function startOscillatorLogic() {
     
     const startTime = audioContext.currentTime + SYNC_DELAY;
 
-    // --- FIX PART C: Send the Sync Timestamp to the Worklet ---
-    // This tells the oscillator: "Do not start moving your phase until EXACTLY this time."
+    // Send the Sync Timestamp to the Worklet
     vibratoWorkletNode.port.postMessage({ startTime: startTime });
+
+    // Determine starting frequency to calculate initial Loudness Compensation
+    let startFreqHz;
+    if (isStartRecorded && isFinishRecorded) {
+        startFreqHz = semitonesToFrequency(startParams.frequency);
+    } else {
+        startFreqHz = semitonesToFrequency(parseFloat(frequencySlider.value));
+    }
 
     let automationDuration = 0;
 
@@ -280,7 +290,6 @@ async function startOscillatorLogic() {
         if (automationDuration < 0) automationDuration = 0;
         automationStartTime = startTime;
 
-        const startFreqHz = semitonesToFrequency(startParams.frequency);
         const startLfoFreq = startParams.rate * (startParams.bpm / 60);
         const finishFreqHz = semitonesToFrequency(finishParams.frequency);
         const finishLfoFreq = finishParams.rate * (finishParams.bpm / 60);
@@ -373,9 +382,12 @@ async function startOscillatorLogic() {
     isPlaying = true;
     playButton.textContent = "Pause";
     
-    // Ramp up gain exactly when the worklet starts generating sound
+    // --- LOUDNESS NORMALIZATION FIX ---
+    // Calculate volume boost based on the starting frequency
+    const targetGain = MASTER_GAIN_REF * getLoudnessNormalization(startFreqHz);
+    
     gainNode.gain.setValueAtTime(0, startTime);
-    gainNode.gain.linearRampToValueAtTime(0.74, startTime + 0.05);
+    gainNode.gain.linearRampToValueAtTime(targetGain, startTime + 0.05);
 }
 
 function updateAutomationUI(startTime, endTime, startParams, finishParams) {
@@ -558,6 +570,31 @@ function frequencyToNoteLabel(frequency) {
     return noteNames[noteIndex] + octave;
 }
 
+// --- NEW FUNCTION: Loudness Compensation (CONTINUOUS FORMULA) ---
+function getLoudnessNormalization(frequency) {
+    const a4 = 442;
+    const maxSemitones = 12; // A5 is 12 semitones above A4
+
+    // 1. Calculate how many semitones away from A4 we are.
+    // This value will vary smoothly (e.g., 0.0, 0.1, ... 11.9, 12.0)
+    let semitones = 12 * Math.log2(frequency / a4);
+
+    // 2. Clamp the range to 0 (A4) to 12 (A5) just to be safe
+    semitones = Math.max(0, Math.min(maxSemitones, semitones));
+
+    // 3. Define boost levels
+    const boostStart = 1.35; // Gain multiplier at A4 (Low end needs boost)
+    const boostEnd = 1.0;    // Gain multiplier at A5 (High end needs no boost)
+
+    // 4. Linear Interpolation based on SEMITONES
+    // Since the slider moves linearly in semitones, this creates a perfectly straight line
+    // of volume change for the user, eliminating "dips".
+    const t = semitones / maxSemitones; 
+    const gain = boostStart + t * (boostEnd - boostStart);
+
+    return gain;
+}
+
 function updateParameters(setImmediately = false, scheduleTimeOverride = null) {
     if (!audioContext || audioContext.state !== 'running' || !vibratoWorkletNode) {
         updateParameterDisplays();
@@ -611,6 +648,13 @@ function updateParameters(setImmediately = false, scheduleTimeOverride = null) {
                 params.get('rate').linearRampToValueAtTime(rate, scheduleTime);
             }
         }
+        
+        // --- LOUDNESS UPDATE FOR SLIDERS ---
+        if (gainNode && isPlaying) {
+            const normalizedGain = MASTER_GAIN_REF * getLoudnessNormalization(baseFrequency);
+            gainNode.gain.setTargetAtTime(normalizedGain, now, 0.1);
+        }
+
     } catch (e) {
         console.error("Error updating audio parameters:", e);
     }
