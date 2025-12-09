@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibrato Oscillator (Phone Optimized)</title>
+<title>Vibrato Oscillator (Continuous Volume)</title>
 <style>
     /* --- Styles copied directly from App 2 --- */
     label, input { display: block; margin-bottom: 10px; }
@@ -24,7 +24,7 @@
 <body>
 <div class="controls-container">
     <div>
-        <label for="frequency">Frequency: <span id="frequency-value">A4</span></label>
+        <label for="frequency">Frequency1: <span id="frequency-value">A4</span></label>
         <div class="param-control">
             <!-- OPTIMAL PHONE RANGE: 0 (A4) to 12 (A5) -->
             <input type="range" id="frequency" min="0" max="12" value="0" step="1">
@@ -173,9 +173,7 @@ let automationStartTime = 0;
 const parameterRampTime = 0.125;
 const SYNC_DELAY = 0.1;
 
-// --- Gain Ceiling Constant (HIGHER for Clarity) ---
-// Since we are using A4-A5, we don't need huge bass boosts.
-// We can safely run at 65% volume.
+// --- Gain Ceiling Constant ---
 const MASTER_GAIN_REF = 0.65; 
 
 const frequencySlider = document.getElementById('frequency');
@@ -572,28 +570,29 @@ function frequencyToNoteLabel(frequency) {
     return noteNames[noteIndex] + octave;
 }
 
-// --- NEW FUNCTION: Loudness Compensation (Optimized for A4-A5) ---
+// --- NEW FUNCTION: Loudness Compensation (CONTINUOUS FORMULA) ---
 function getLoudnessNormalization(frequency) {
-    // A4 (440Hz) is strong on phones, but A5 (880Hz) is slightly louder naturally.
-    // We only need a gentle curve now.
-    const points = [
-        { f: 400, m: 1.3 }, // Slight boost for lower end of octave
-        { f: 600, m: 1.15 },
-        { f: 880, m: 1.0 }  // A5 needs no help
-    ];
+    const a4 = 442;
+    const maxSemitones = 12; // A5 is 12 semitones above A4
 
-    if (frequency <= points[0].f) return points[0].m;
-    if (frequency >= points[points.length - 1].f) return points[points.length - 1].m;
+    // 1. Calculate how many semitones away from A4 we are.
+    // This value will vary smoothly (e.g., 0.0, 0.1, ... 11.9, 12.0)
+    let semitones = 12 * Math.log2(frequency / a4);
 
-    for (let i = 0; i < points.length - 1; i++) {
-        const p1 = points[i];
-        const p2 = points[i + 1];
-        if (frequency >= p1.f && frequency <= p2.f) {
-            const t = (frequency - p1.f) / (p2.f - p1.f);
-            return p1.m + t * (p2.m - p1.m);
-        }
-    }
-    return 1.0;
+    // 2. Clamp the range to 0 (A4) to 12 (A5) just to be safe
+    semitones = Math.max(0, Math.min(maxSemitones, semitones));
+
+    // 3. Define boost levels
+    const boostStart = 1.35; // Gain multiplier at A4 (Low end needs boost)
+    const boostEnd = 1.0;    // Gain multiplier at A5 (High end needs no boost)
+
+    // 4. Linear Interpolation based on SEMITONES
+    // Since the slider moves linearly in semitones, this creates a perfectly straight line
+    // of volume change for the user, eliminating "dips".
+    const t = semitones / maxSemitones; 
+    const gain = boostStart + t * (boostEnd - boostStart);
+
+    return gain;
 }
 
 function updateParameters(setImmediately = false, scheduleTimeOverride = null) {
