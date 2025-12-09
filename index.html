@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibrato Oscillator (Cosine Volume)</title>
+<title>Vibrato Oscillator (Continuous Volume)</title>
 <style>
     /* --- Styles copied directly from App 2 --- */
     label, input { display: block; margin-bottom: 10px; }
@@ -24,7 +24,7 @@
 <body>
 <div class="controls-container">
     <div>
-        <label for="frequency">Frequency3: <span id="frequency-value">A4</span></label>
+        <label for="frequency">Frequency4: <span id="frequency-value">A4</span></label>
         <div class="param-control">
             <!-- OPTIMAL PHONE RANGE: 0 (A4) to 12 (A5) -->
             <input type="range" id="frequency" min="0" max="12" value="0" step="1">
@@ -570,26 +570,27 @@ function frequencyToNoteLabel(frequency) {
     return noteNames[noteIndex] + octave;
 }
 
-// --- NEW FUNCTION: COSINE LOUDNESS COMPENSATION ---
-// This fills the "scoop" by keeping the volume high in the middle frequencies.
+// --- NEW FUNCTION: Loudness Compensation (CONTINUOUS FORMULA) ---
 function getLoudnessNormalization(frequency) {
     const a4 = 442;
-    const maxSemitones = 12; 
+    const maxSemitones = 12; // A5 is 12 semitones above A4
+
+    // 1. Calculate how many semitones away from A4 we are.
+    // This value will vary smoothly (e.g., 0.0, 0.1, ... 11.9, 12.0)
     let semitones = 12 * Math.log2(frequency / a4);
+
+    // 2. Clamp the range to 0 (A4) to 12 (A5) just to be safe
     semitones = Math.max(0, Math.min(maxSemitones, semitones));
 
-    // Calculate progress (0.0 to 1.0)
+    // 3. Define boost levels
+    const boostStart = 1.35; // Gain multiplier at A4 (Low end needs boost)
+    const boostEnd = 1.0;    // Gain multiplier at A5 (High end needs no boost)
+
+    // 4. Linear Interpolation based on SEMITONES
+    // Since the slider moves linearly in semitones, this creates a perfectly straight line
+    // of volume change for the user, eliminating "dips".
     const t = semitones / maxSemitones; 
-
-    // Constants
-    const boostStart = 1.45; // Start High (A4)
-    const boostEnd = 1.0;    // End Normal (A5)
-
-    // COSINE INTERPOLATION (Equal Power Curve)
-    // Formula: End + (Start - End) * Cos(t * PI/2)
-    // This creates a convex bulge, keeping mid-range louder.
-    const cosineFactor = Math.cos(t * (Math.PI / 2));
-    const gain = boostEnd + (boostStart - boostEnd) * cosineFactor;
+    const gain = boostStart + t * (boostEnd - boostStart);
 
     return gain;
 }
