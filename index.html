@@ -26,7 +26,6 @@
     <div>
         <label for="frequency">Frequency: <span id="frequency-value">A4</span></label>
         <div class="param-control">
-            <!-- CHANGED: min set to -9 (C4), max set to 15 (C6) for Phone Optimization -->
             <input type="range" id="frequency" min="-9" max="15" value="0" step="1">
             <button id="frequency-minus">-</button>
             <button id="frequency-plus">+</button>
@@ -173,10 +172,9 @@ let automationStartTime = 0;
 const parameterRampTime = 0.125;
 const SYNC_DELAY = 0.1;
 
-// --- Gain Ceiling Constant ---
-// Increased to 0.6 because we removed the dangerous sub-bass frequencies.
-// C4 needs roughly 1.4x boost. 0.6 * 1.4 = 0.84 (Safe and Loud)
-const MASTER_GAIN_REF = 0.6; 
+// --- Gain Ceiling Constant (LOWERED to make room for C4 Boost) ---
+// 0.4 (Base) * 2.4 (C4 Boost) = 0.96 (Safe, No Clipping)
+const MASTER_GAIN_REF = 0.4; 
 
 const frequencySlider = document.getElementById('frequency');
 const depthSlider = document.getElementById('depth');
@@ -574,14 +572,15 @@ function frequencyToNoteLabel(frequency) {
 
 // --- NEW FUNCTION: Loudness Compensation ---
 function getLoudnessNormalization(frequency) {
-    // Points: [FreqHz, GainMultiplier]
-    // C4 (261Hz) = 1.4x boost (Lower end of phone speakers)
+    // UPDATED POINTS FOR PHONE SPEAKERS
+    // C4 (261Hz) = 2.4x boost (Aggressive bass compensation)
+    // C5 (523Hz) = 1.5x boost
     // C6 (1046Hz) = 1.0x (normal)
     const points = [
-        { f: 60, m: 2.6 },
-        { f: 100, m: 2.0 },
-        { f: 261, m: 1.4 }, // C4
-        { f: 523, m: 1.1 }, // C5
+        { f: 60, m: 3.5 }, // Ultra-low protection
+        { f: 100, m: 3.0 },
+        { f: 261, m: 2.4 }, // C4 - Huge boost here
+        { f: 523, m: 1.5 }, // C5
         { f: 1046, m: 1.0 } // C6
     ];
 
