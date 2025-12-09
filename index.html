@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibrato Oscillator (Seamless Volume)</title>
+<title>Vibrato Oscillator (Cosine Volume)</title>
 <style>
     /* --- Styles copied directly from App 2 --- */
     label, input { display: block; margin-bottom: 10px; }
@@ -24,10 +24,10 @@
 <body>
 <div class="controls-container">
     <div>
-        <label for="frequency">Frequency2: <span id="frequency-value">A4</span></label>
+        <label for="frequency">Frequency: <span id="frequency-value">A4</span></label>
         <div class="param-control">
             <!-- OPTIMAL PHONE RANGE: 0 (A4) to 12 (A5) -->
-            <input type="range" id="frequency" min="0" max="12" value="0" step="1">
+            <input type="range" id="frequency3" min="0" max="12" value="0" step="1">
             <button id="frequency-minus">-</button>
             <button id="frequency-plus">+</button>
         </div>
@@ -570,26 +570,26 @@ function frequencyToNoteLabel(frequency) {
     return noteNames[noteIndex] + octave;
 }
 
-// --- NEW FUNCTION: Loudness Compensation (COSINE CURVE) ---
+// --- NEW FUNCTION: COSINE LOUDNESS COMPENSATION ---
+// This fills the "scoop" by keeping the volume high in the middle frequencies.
 function getLoudnessNormalization(frequency) {
     const a4 = 442;
-    const maxSemitones = 12; // A4 -> A5
-
+    const maxSemitones = 12; 
     let semitones = 12 * Math.log2(frequency / a4);
     semitones = Math.max(0, Math.min(maxSemitones, semitones));
 
-    // Progress 0.0 (A4) to 1.0 (A5)
+    // Calculate progress (0.0 to 1.0)
     const t = semitones / maxSemitones; 
 
-    // Define boost levels
-    const boostStart = 1.35; // A4 (Need boost)
-    const boostEnd = 1.0;    // A5 (No boost)
-    const diff = boostStart - boostEnd;
+    // Constants
+    const boostStart = 1.45; // Start High (A4)
+    const boostEnd = 1.0;    // End Normal (A5)
 
-    // COSINE INTERPOLATION
-    // This maintains the higher volume through the middle (filling the V-hole)
-    // and only drops off gently at the end.
-    const gain = boostEnd + (diff * Math.cos(t * Math.PI / 2));
+    // COSINE INTERPOLATION (Equal Power Curve)
+    // Formula: End + (Start - End) * Cos(t * PI/2)
+    // This creates a convex bulge, keeping mid-range louder.
+    const cosineFactor = Math.cos(t * (Math.PI / 2));
+    const gain = boostEnd + (boostStart - boostEnd) * cosineFactor;
 
     return gain;
 }
