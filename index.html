@@ -24,7 +24,7 @@
 <body>
 <div class="controls-container">
     <div>
-        <label for="frequency">Frequency7: <span id="frequency-value">A4</span></label>
+        <label for="frequency">Frequency: <span id="frequency-value">A4</span></label>
         <div class="param-control">
             <!-- OPTIMAL PHONE RANGE: 0 (A4) to 12 (A5) -->
             <input type="range" id="frequency" min="0" max="12" value="0" step="1">
@@ -36,16 +36,16 @@
     <div>
         <label for="depth">Amplitude: <span id="depth-value">50</span> <span class="unit-symbol">%</span></label>
         <div class="param-control">
-            <input type="range" id="depth" min="0" max="100" value="50" step="1">
+            <input type="range" id="depth" min="0" max="44" value="22" step="1">
             <button id="depth-minus">-</button>
             <button id="depth-plus">+</button>
         </div>
     </div>
 
     <div>
-        <label for="rate">Speed: <span id="rate-value">5.0</span> <span class="unit-symbol">%</span></label>
+        <label for="rate">Speed: <span id="rate-value">5.5</span> <span class="unit-symbol">%</span></label>
         <div class="param-control">
-            <input type="range" id="rate" min="4" max="8" value="5" step="0.1">
+            <input type="range" id="rate" min="4" max="7" value="5" step="0.1">
             <button id="rate-minus">-</button>
             <button id="rate-plus">+</button>
         </div>
@@ -54,7 +54,7 @@
     <div>
         <label for="bpm">Metronome: <span id="bpm-value">60</span></label>
         <div class="param-control">
-            <input type="range" id="bpm" min="45" max="120" value="60" step="1">
+            <input type="range" id="bpm" min="45" max="105" value="60" step="1">
             <button id="bpm-minus">-</button>
             <button id="bpm-plus">+</button>
         </div>
