@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibrato Oscillator (Continuous Volume)</title>
+<title>Vibrato Oscillator (Seamless Volume)</title>
 <style>
     /* --- Styles copied directly from App 2 --- */
     label, input { display: block; margin-bottom: 10px; }
@@ -24,7 +24,7 @@
 <body>
 <div class="controls-container">
     <div>
-        <label for="frequency">Frequency1: <span id="frequency-value">A4</span></label>
+        <label for="frequency">Frequency2: <span id="frequency-value">A4</span></label>
         <div class="param-control">
             <!-- OPTIMAL PHONE RANGE: 0 (A4) to 12 (A5) -->
             <input type="range" id="frequency" min="0" max="12" value="0" step="1">
@@ -570,27 +570,26 @@ function frequencyToNoteLabel(frequency) {
     return noteNames[noteIndex] + octave;
 }
 
-// --- NEW FUNCTION: Loudness Compensation (CONTINUOUS FORMULA) ---
+// --- NEW FUNCTION: Loudness Compensation (COSINE CURVE) ---
 function getLoudnessNormalization(frequency) {
     const a4 = 442;
-    const maxSemitones = 12; // A5 is 12 semitones above A4
+    const maxSemitones = 12; // A4 -> A5
 
-    // 1. Calculate how many semitones away from A4 we are.
-    // This value will vary smoothly (e.g., 0.0, 0.1, ... 11.9, 12.0)
     let semitones = 12 * Math.log2(frequency / a4);
-
-    // 2. Clamp the range to 0 (A4) to 12 (A5) just to be safe
     semitones = Math.max(0, Math.min(maxSemitones, semitones));
 
-    // 3. Define boost levels
-    const boostStart = 1.35; // Gain multiplier at A4 (Low end needs boost)
-    const boostEnd = 1.0;    // Gain multiplier at A5 (High end needs no boost)
-
-    // 4. Linear Interpolation based on SEMITONES
-    // Since the slider moves linearly in semitones, this creates a perfectly straight line
-    // of volume change for the user, eliminating "dips".
+    // Progress 0.0 (A4) to 1.0 (A5)
     const t = semitones / maxSemitones; 
-    const gain = boostStart + t * (boostEnd - boostStart);
+
+    // Define boost levels
+    const boostStart = 1.35; // A4 (Need boost)
+    const boostEnd = 1.0;    // A5 (No boost)
+    const diff = boostStart - boostEnd;
+
+    // COSINE INTERPOLATION
+    // This maintains the higher volume through the middle (filling the V-hole)
+    // and only drops off gently at the end.
+    const gain = boostEnd + (diff * Math.cos(t * Math.PI / 2));
 
     return gain;
 }
