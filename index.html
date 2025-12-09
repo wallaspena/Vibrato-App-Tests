@@ -26,6 +26,7 @@
     <div>
         <label for="frequency">Frequency: <span id="frequency-value">A4</span></label>
         <div class="param-control">
+            <!-- CHANGED: min set to -9 (C4), max set to 15 (C6) for Phone Optimization -->
             <input type="range" id="frequency" min="-9" max="15" value="0" step="1">
             <button id="frequency-minus">-</button>
             <button id="frequency-plus">+</button>
@@ -91,7 +92,7 @@ class VibratoProcessor extends AudioWorkletProcessor {
     this.lfoPhase = 0;
     this.previousInstantaneousFreq = 0;
     
-    // --- FIX PART A: Initialize Sync State ---
+    // Initialize Sync State
     this.startTime = -1;
     this.port.onmessage = (e) => {
       if (e.data.startTime !== undefined) {
@@ -105,8 +106,7 @@ class VibratoProcessor extends AudioWorkletProcessor {
     const outputChannel = output[0];
     const bufferLength = outputChannel.length;
     
-    // --- FIX PART B: Wait for Start Time ---
-    // If we haven't reached the start time, output silence and DO NOT advance phase.
+    // Wait for Start Time for perfect phase alignment
     if (this.startTime !== -1 && currentTime < this.startTime) {
         outputChannel.fill(0);
         return true;
@@ -171,7 +171,12 @@ let automationAnimationFrame = null;
 let automationStartTime = 0;
 
 const parameterRampTime = 0.125;
-const SYNC_DELAY = 0.1; // This delay now ensures perfect phase alignment
+const SYNC_DELAY = 0.1;
+
+// --- Gain Ceiling Constant ---
+// Increased to 0.6 because we removed the dangerous sub-bass frequencies.
+// C4 needs roughly 1.4x boost. 0.6 * 1.4 = 0.84 (Safe and Loud)
+const MASTER_GAIN_REF = 0.6; 
 
 const frequencySlider = document.getElementById('frequency');
 const depthSlider = document.getElementById('depth');
@@ -253,7 +258,7 @@ function startOscillator() {
 }
 
 async function startOscillatorLogic() {
-    // Load Worklet from Blob to act as a single file
+    // Load Worklet from Blob
     if (!vibratoWorkletNode) {
         try {
             const blob = new Blob([workletCode], { type: 'application/javascript' });
@@ -269,9 +274,16 @@ async function startOscillatorLogic() {
     
     const startTime = audioContext.currentTime + SYNC_DELAY;
 
-    // --- FIX PART C: Send the Sync Timestamp to the Worklet ---
-    // This tells the oscillator: "Do not start moving your phase until EXACTLY this time."
+    // Send the Sync Timestamp to the Worklet
     vibratoWorkletNode.port.postMessage({ startTime: startTime });
+
+    // Determine starting frequency to calculate initial Loudness Compensation
+    let startFreqHz;
+    if (isStartRecorded && isFinishRecorded) {
+        startFreqHz = semitonesToFrequency(startParams.frequency);
+    } else {
+        startFreqHz = semitonesToFrequency(parseFloat(frequencySlider.value));
+    }
 
     let automationDuration = 0;
 
@@ -280,7 +292,6 @@ async function startOscillatorLogic() {
         if (automationDuration < 0) automationDuration = 0;
         automationStartTime = startTime;
 
-        const startFreqHz = semitonesToFrequency(startParams.frequency);
         const startLfoFreq = startParams.rate * (startParams.bpm / 60);
         const finishFreqHz = semitonesToFrequency(finishParams.frequency);
         const finishLfoFreq = finishParams.rate * (finishParams.bpm / 60);
@@ -373,9 +384,12 @@ async function startOscillatorLogic() {
     isPlaying = true;
     playButton.textContent = "Pause";
     
-    // Ramp up gain exactly when the worklet starts generating sound
+    // --- LOUDNESS NORMALIZATION FIX (Updated Reference) ---
+    // Calculate volume boost based on the starting frequency
+    const targetGain = MASTER_GAIN_REF * getLoudnessNormalization(startFreqHz);
+    
     gainNode.gain.setValueAtTime(0, startTime);
-    gainNode.gain.linearRampToValueAtTime(0.74, startTime + 0.05);
+    gainNode.gain.linearRampToValueAtTime(targetGain, startTime + 0.05);
 }
 
 function updateAutomationUI(startTime, endTime, startParams, finishParams) {
@@ -558,6 +572,33 @@ function frequencyToNoteLabel(frequency) {
     return noteNames[noteIndex] + octave;
 }
 
+// --- NEW FUNCTION: Loudness Compensation ---
+function getLoudnessNormalization(frequency) {
+    // Points: [FreqHz, GainMultiplier]
+    // C4 (261Hz) = 1.4x boost (Lower end of phone speakers)
+    // C6 (1046Hz) = 1.0x (normal)
+    const points = [
+        { f: 60, m: 2.6 },
+        { f: 100, m: 2.0 },
+        { f: 261, m: 1.4 }, // C4
+        { f: 523, m: 1.1 }, // C5
+        { f: 1046, m: 1.0 } // C6
+    ];
+
+    if (frequency <= points[0].f) return points[0].m;
+    if (frequency >= points[points.length - 1].f) return points[points.length - 1].m;
+
+    for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        if (frequency >= p1.f && frequency <= p2.f) {
+            const t = (frequency - p1.f) / (p2.f - p1.f);
+            return p1.m + t * (p2.m - p1.m);
+        }
+    }
+    return 1.0;
+}
+
 function updateParameters(setImmediately = false, scheduleTimeOverride = null) {
     if (!audioContext || audioContext.state !== 'running' || !vibratoWorkletNode) {
         updateParameterDisplays();
@@ -611,6 +652,13 @@ function updateParameters(setImmediately = false, scheduleTimeOverride = null) {
                 params.get('rate').linearRampToValueAtTime(rate, scheduleTime);
             }
         }
+        
+        // --- LOUDNESS UPDATE FOR SLIDERS (Updated Reference) ---
+        if (gainNode && isPlaying) {
+            const normalizedGain = MASTER_GAIN_REF * getLoudnessNormalization(baseFrequency);
+            gainNode.gain.setTargetAtTime(normalizedGain, now, 0.1);
+        }
+
     } catch (e) {
         console.error("Error updating audio parameters:", e);
     }
