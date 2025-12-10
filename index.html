@@ -840,11 +840,14 @@ function setupNextStep() {
 }
 
 function endGame() {
+    // Force remove red border/shake effect
+    document.getElementById('game-card').classList.remove('shake-effect');
+    
     overlay.classList.remove('correct', 'wrong', 'pass-device');
     overlay.classList.add('gameover');
     feedbackTitle.textContent = "Game Over";
     
-    // ALWAYS FIRE CONFETTI ON FINAL SCREEN
+    // ALWAYS CELEBRATE AT THE END
     fireConfetti();
 
     if (isMultiplayer) {
