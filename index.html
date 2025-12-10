@@ -214,9 +214,7 @@
         <div style="font-size: 0.8rem; color: #999; margin-top: -10px;">(A4 Note)</div>
     </div>
 
-    <div id="options-container" class="options-grid">
-        <!-- Buttons injected by JS -->
-    </div>
+    <div id="options-container" class="options-grid"></div>
 
     <div class="controls">
         <select id="difficulty-select">
@@ -230,23 +228,19 @@
     <!-- Feedback Overlay -->
     <div id="feedback-overlay" class="overlay">
         <h3 id="feedback-title">Correct!</h3>
-        <p id="feedback-message">The answer was 5.5Hz / 22 cents</p>
+        <p id="feedback-message"></p>
         <button id="next-round-btn" class="btn-next">Next Round</button>
     </div>
 </div>
 
 <div class="high-scores">
-    <strong>Top 3 High Scores:</strong>
-    <ol id="highscore-list">
-        <li>-</li>
-        <li>-</li>
-        <li>-</li>
-    </ol>
+    <strong id="highscore-title">Top 3 High Scores (Medium):</strong>
+    <ol id="highscore-list"></ol>
 </div>
 
 <script>
 /**
- * --- AUDIO ENGINE ---
+ * --- AUDIO ENGINE (WITH EXACT SYNC) ---
  */
 const workletCode = `
 class VibratoProcessor extends AudioWorkletProcessor {
@@ -263,12 +257,24 @@ class VibratoProcessor extends AudioWorkletProcessor {
     this.carrierPhase = 0;
     this.lfoPhase = 0;
     this.previousInstantaneousFreq = 0;
+    
+    this.startTime = -1;
+    this.port.onmessage = (e) => {
+      if (e.data.startTime !== undefined) {
+        this.startTime = e.data.startTime;
+      }
+    };
   }
 
   process(inputs, outputs, parameters) {
     const output = outputs[0];
     const outputChannel = output[0];
     const bufferLength = outputChannel.length;
+    
+    if (this.startTime !== -1 && currentTime < this.startTime) {
+        outputChannel.fill(0);
+        return true;
+    }
 
     const baseFreqParams = parameters.baseFrequency;
     const depthParams = parameters.depth;
@@ -324,7 +330,8 @@ let nextClickTime = 0;
 
 const NOTE_GAIN = 0.60;
 const CLICK_GAIN = 0.25;
-const FADE_TIME = 0.1;
+const FADE_TIME = 0.05;
+const SYNC_DELAY = 0.1;
 const METRO_BPM = 60;
 
 // --- GAME STATE ---
@@ -334,22 +341,26 @@ let currentScore = 0;
 let currentDifficulty = 'medium';
 let targetValues = { rate: 0, depth: 0 };
 let currentOptions = [];
-let gameState = 'waiting'; // 'waiting', 'playing', 'feedback', 'results', 'gameover'
+let gameState = 'waiting'; 
 
-// Load high scores safely
-let highScores = [0, 0, 0];
+// --- HIGH SCORE LOGIC (INDEPENDENT) ---
+const defaultScores = {
+    easy: [0, 0, 0],
+    medium: [0, 0, 0],
+    hard: [0, 0, 0]
+};
+
+let highScores = defaultScores;
 try {
     const saved = localStorage.getItem('vibratoHighScores');
     if (saved) {
         highScores = JSON.parse(saved);
-        // Ensure it's an array of 3 numbers
-        if (!Array.isArray(highScores) || highScores.length !== 3) {
-            highScores = [0, 0, 0];
+        // Fallback for old data structure or corruption
+        if (!highScores.easy || !highScores.medium || !highScores.hard) {
+            highScores = defaultScores;
         }
     }
-} catch (e) {
-    highScores = [0, 0, 0];
-}
+} catch (e) { highScores = defaultScores; }
 
 // --- DOM ELEMENTS ---
 const listenBtn = document.getElementById('listen-btn');
@@ -367,6 +378,7 @@ const feedbackTitle = document.getElementById('feedback-title');
 const feedbackMessage = document.getElementById('feedback-message');
 const nextRoundBtn = document.getElementById('next-round-btn');
 const highscoreList = document.getElementById('highscore-list');
+const highscoreTitle = document.getElementById('highscore-title');
 
 // --- AUDIO FUNCTIONS ---
 async function initAudio() {
@@ -403,10 +415,9 @@ function scheduleClick(time) {
     clickOsc.stop(time + 0.05);
 }
 
-function startMetronomeLoop() {
+function startMetronomeLoop(startTime) {
     const interval = 60 / METRO_BPM;
-    nextClickTime = audioContext.currentTime; 
-    nextClickTime = Math.max(audioContext.currentTime, nextClickTime + 0.01);
+    nextClickTime = startTime; 
 
     function scheduler() {
         if (!isPlaying) return;
@@ -441,13 +452,18 @@ function playSound() {
         params.get('rate').setValueAtTime(targetValues.rate, audioContext.currentTime);
         params.get('depth').setValueAtTime(targetValues.depth, audioContext.currentTime);
 
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(NOTE_GAIN, audioContext.currentTime + FADE_TIME);
+        const now = audioContext.currentTime;
+        const startTime = now + SYNC_DELAY; 
+
+        vibratoNode.port.postMessage({ startTime: startTime });
+
+        gainNode.gain.setValueAtTime(0, startTime);
+        gainNode.gain.linearRampToValueAtTime(NOTE_GAIN, startTime + FADE_TIME);
 
         isPlaying = true;
         updatePlayButtonState();
 
-        if (isMetronomeOn) startMetronomeLoop();
+        if (isMetronomeOn) startMetronomeLoop(startTime);
     });
 }
 
@@ -464,7 +480,7 @@ function stopSound() {
         if (vibratoNode) { vibratoNode.disconnect(); vibratoNode = null; }
         isPlaying = false;
         updatePlayButtonState();
-    }, (FADE_TIME * 1000) + 50);
+    }, (FADE_TIME * 1000) + 100);
 }
 
 function updatePlayButtonState() {
@@ -482,7 +498,14 @@ function updatePlayButtonState() {
 // --- GAME LOGIC ---
 
 function updateHighScoresDisplay() {
-    highscoreList.innerHTML = highScores
+    const diff = difficultySelect.value;
+    const scores = highScores[diff] || [0,0,0];
+    
+    // Update Title to reflect mode
+    const diffName = diff.charAt(0).toUpperCase() + diff.slice(1);
+    highscoreTitle.textContent = `Top 3 High Scores (${diffName}):`;
+
+    highscoreList.innerHTML = scores
         .map(score => `<li>${score} pts</li>`)
         .join('');
 }
@@ -559,7 +582,6 @@ function handleGuess(selectedOption) {
     
     const isCorrect = (selectedOption.rate === targetValues.rate && selectedOption.depth === targetValues.depth);
     
-    // UI Reset
     overlay.classList.remove('gameover', 'correct', 'wrong');
     overlay.className = 'overlay visible';
 
@@ -580,9 +602,7 @@ function handleGuess(selectedOption) {
 
     scoreDisplay.textContent = `Score: ${currentScore}`;
 
-    // Logic for next step
     if (currentRound >= MAX_ROUNDS) {
-        // Round 5 just finished
         nextRoundBtn.textContent = "See Results";
         gameState = 'results';
     } else {
@@ -592,39 +612,43 @@ function handleGuess(selectedOption) {
 }
 
 function endGame() {
-    // 1. Calculate High Score
     overlay.classList.remove('correct', 'wrong');
     overlay.classList.add('gameover');
     feedbackTitle.textContent = "Game Over";
     
     let msg = `Final Score: ${currentScore}<br>`;
     
-    // Sort logic
-    highScores.push(currentScore);
-    highScores.sort((a, b) => b - a); // Descending
-    highScores = highScores.slice(0, 3); // Keep top 3
+    // Select specific difficulty array
+    const levelScores = highScores[currentDifficulty];
     
-    // Save to LocalStorage
+    // Add new score
+    levelScores.push(currentScore);
+    levelScores.sort((a, b) => b - a);
+    
+    // Keep top 3 and update object
+    highScores[currentDifficulty] = levelScores.slice(0, 3);
+    
+    // Save entire object
     localStorage.setItem('vibratoHighScores', JSON.stringify(highScores));
     
-    // Check if current score is among the top 3 (and not 0)
-    if (currentScore > 0 && highScores.includes(currentScore)) {
-        msg += `<br><span class="new-record">🏆 TOP SCORE! 🏆</span>`;
+    // Check if new record for THIS level
+    if (currentScore > 0 && highScores[currentDifficulty].includes(currentScore)) {
+        msg += `<br><span class="new-record">🏆 TOP SCORE (${currentDifficulty.toUpperCase()})! 🏆</span>`;
     }
 
     feedbackMessage.innerHTML = msg;
     nextRoundBtn.textContent = "Play Again";
     updateHighScoresDisplay();
-    
-    // Set state so next click restarts
     gameState = 'gameover';
 }
 
 function restartGame() {
     currentRound = 1;
     currentScore = 0;
+    // Ensure difficulty matches dropdown
     currentDifficulty = difficultySelect.value;
     difficultyLabel.textContent = `Difficulty: ${currentDifficulty.charAt(0).toUpperCase() + currentDifficulty.slice(1)}`;
+    updateHighScoresDisplay(); // Show scores for the new level
     overlay.classList.remove('visible', 'gameover');
     startRound();
 }
@@ -642,13 +666,10 @@ metroToggle.addEventListener('click', () => {
 
 nextRoundBtn.addEventListener('click', () => {
     if (gameState === 'results') {
-        // User clicked "See Results"
         endGame();
     } else if (gameState === 'gameover') {
-        // User clicked "Play Again"
         restartGame();
     } else if (gameState === 'feedback') {
-        // User clicked "Next Round"
         if (currentRound < MAX_ROUNDS) {
             currentRound++;
             overlay.classList.remove('visible');
@@ -658,9 +679,12 @@ nextRoundBtn.addEventListener('click', () => {
 });
 
 restartBtn.addEventListener('click', () => { stopSound(); restartGame(); });
-difficultySelect.addEventListener('change', () => { stopSound(); restartGame(); });
 
-// Init
+difficultySelect.addEventListener('change', () => { 
+    stopSound(); 
+    restartGame(); 
+});
+
 updateHighScoresDisplay();
 startRound();
 
