@@ -482,21 +482,21 @@ function generateOptions(target, difficulty) {
     switch(difficulty) {
         case 'easy':
             numOptions = 2; // Binary choice
-            rateDev = 2.0;  // Obvious
-            depthDev = 20;
+            rateDev = 3.0;  // Obvious
+            depthDev = 30;
             break;
         case 'medium':
             numOptions = 3; // Standard
-            rateDev = 1.0;
-            depthDev = 10;
+            rateDev = 2.0;
+            depthDev = 20;
             break;
         case 'hard':
             numOptions = 5; // Crowded
-            rateDev = 0.4;  // Subtle
-            depthDev = 5;
+            rateDev = 1.0;  // Subtle
+            depthDev = 10;
             break;
         default:
-            numOptions = 3; rateDev = 1.0; depthDev = 10;
+            numOptions = 3; rateDev = 2.0; depthDev = 20;
     }
 
     let opts = [target];
