@@ -55,6 +55,14 @@
         padding-bottom: 10px;
     }
 
+    .play-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 25px;
+    }
+
     .listen-btn {
         width: 80px;
         height: 80px;
@@ -62,22 +70,36 @@
         background: var(--accent);
         border: none;
         color: white;
-        font-size: 1.5rem; /* Icon size */
+        font-size: 1.5rem;
         cursor: pointer;
-        margin-bottom: 25px;
         transition: transform 0.1s, background-color 0.2s;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-left: auto;
-        margin-right: auto;
         box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     }
     
     .listen-btn:active { transform: scale(0.95); }
     .listen-btn.playing { background-color: #444; }
 
-    /* SVG Icons for Play/Stop */
+    .metro-toggle {
+        background: none;
+        border: 1px solid #ddd;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        color: #777;
+        transition: all 0.2s;
+    }
+
+    .metro-toggle.active {
+        background-color: #e0e0e0;
+        color: #000;
+        border-color: #999;
+        font-weight: bold;
+    }
+
     .icon { width: 30px; height: 30px; fill: white; }
 
     .options-grid {
@@ -122,7 +144,7 @@
     .overlay {
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(255,255,255,0.95);
+        background: rgba(255,255,255,0.98);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -131,6 +153,7 @@
         pointer-events: none;
         transition: opacity 0.3s;
         padding: 20px;
+        z-index: 10;
     }
     
     .overlay.visible { opacity: 1; pointer-events: all; }
@@ -145,6 +168,7 @@
 
     .overlay.correct h3 { color: var(--success); }
     .overlay.wrong h3 { color: var(--error); }
+    .overlay.gameover h3 { color: var(--text); }
 
     .high-scores {
         margin-top: 30px;
@@ -156,13 +180,12 @@
     }
     .high-scores ol { padding-left: 20px; }
 
-    /* Record Breaker Animation */
     @keyframes pulse {
         0% { transform: scale(1); }
         50% { transform: scale(1.1); }
         100% { transform: scale(1); }
     }
-    .new-record { color: #d63384; animation: pulse 1s infinite; font-weight: bold; }
+    .new-record { color: #d63384; animation: pulse 1s infinite; font-weight: bold; display: block; margin-top: 10px; }
 
 </style>
 </head>
@@ -177,14 +200,19 @@
         <span id="score-display">Score: 0</span>
     </div>
 
-    <!-- Play/Stop Button -->
-    <button id="listen-btn" class="listen-btn" aria-label="Play Sound">
-        <!-- Play Icon -->
-        <svg id="icon-play" class="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-        <!-- Stop Icon (Hidden by default) -->
-        <svg id="icon-stop" class="icon" viewBox="0 0 24 24" style="display:none"><path d="M6 6h12v12H6z"/></svg>
-    </button>
-    <p style="font-size: 0.8rem; color: #999; margin-top:-15px; margin-bottom: 20px;">Tap to listen (A4 Note)</p>
+    <div class="play-section">
+        <!-- Play/Stop Button -->
+        <button id="listen-btn" class="listen-btn" aria-label="Play Sound">
+            <svg id="icon-play" class="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="icon-stop" class="icon" viewBox="0 0 24 24" style="display:none"><path d="M6 6h12v12H6z"/></svg>
+        </button>
+        
+        <!-- Metronome Toggle -->
+        <button id="metro-toggle" class="metro-toggle">
+            Metronome: Off
+        </button>
+        <div style="font-size: 0.8rem; color: #999; margin-top: -10px;">(A4 Note)</div>
+    </div>
 
     <div id="options-container" class="options-grid">
         <!-- Buttons injected by JS -->
@@ -218,7 +246,7 @@
 
 <script>
 /**
- * --- AUDIO ENGINE (FROM PROVIDED APP) ---
+ * --- AUDIO ENGINE ---
  */
 const workletCode = `
 class VibratoProcessor extends AudioWorkletProcessor {
@@ -253,7 +281,6 @@ class VibratoProcessor extends AudioWorkletProcessor {
       const currentDepth = depthParams.length > 1 ? depthParams[i] : depthParams[0];
       const currentRate = rateParams.length > 1 ? rateParams[i] : rateParams[0];
 
-      // Dynamic Calibration from original app
       const calibrationFactor = 1.0 + (currentRate * 0.005);
       const effectiveDepth = currentDepth * calibrationFactor;
 
@@ -288,22 +315,45 @@ registerProcessor('vibrato-processor', VibratoProcessor);
 let audioContext = null;
 let vibratoNode = null;
 let gainNode = null;
-let isPlaying = false;
-const FIXED_GAIN = 0.60;
-const FADE_TIME = 0.1;
+let metronomeGainNode = null;
 
-// --- GAME LOGIC VARIABLES ---
+let isPlaying = false;
+let isMetronomeOn = false;
+let metronomeInterval = null;
+let nextClickTime = 0;
+
+const NOTE_GAIN = 0.60;
+const CLICK_GAIN = 0.25;
+const FADE_TIME = 0.1;
+const METRO_BPM = 60;
+
+// --- GAME STATE ---
 const MAX_ROUNDS = 5;
 let currentRound = 1;
 let currentScore = 0;
 let currentDifficulty = 'medium';
 let targetValues = { rate: 0, depth: 0 };
 let currentOptions = [];
-let highScores = JSON.parse(localStorage.getItem('vibratoHighScores')) || [0, 0, 0];
-let gameState = 'waiting'; // waiting, playing, feedback, gameover
+let gameState = 'waiting'; // 'waiting', 'playing', 'feedback', 'results', 'gameover'
+
+// Load high scores safely
+let highScores = [0, 0, 0];
+try {
+    const saved = localStorage.getItem('vibratoHighScores');
+    if (saved) {
+        highScores = JSON.parse(saved);
+        // Ensure it's an array of 3 numbers
+        if (!Array.isArray(highScores) || highScores.length !== 3) {
+            highScores = [0, 0, 0];
+        }
+    }
+} catch (e) {
+    highScores = [0, 0, 0];
+}
 
 // --- DOM ELEMENTS ---
 const listenBtn = document.getElementById('listen-btn');
+const metroToggle = document.getElementById('metro-toggle');
 const iconPlay = document.getElementById('icon-play');
 const iconStop = document.getElementById('icon-stop');
 const optionsContainer = document.getElementById('options-container');
@@ -319,7 +369,6 @@ const nextRoundBtn = document.getElementById('next-round-btn');
 const highscoreList = document.getElementById('highscore-list');
 
 // --- AUDIO FUNCTIONS ---
-
 async function initAudio() {
     if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -332,53 +381,87 @@ async function initAudio() {
     }
 }
 
-function playSound() {
-    if (isPlaying) {
-        stopSound();
-        return;
+function createMetronomePath() {
+    if (!metronomeGainNode) {
+        metronomeGainNode = audioContext.createGain();
+        metronomeGainNode.gain.value = CLICK_GAIN;
+        metronomeGainNode.connect(audioContext.destination);
     }
+}
 
+function scheduleClick(time) {
+    createMetronomePath();
+    const clickOsc = audioContext.createOscillator();
+    const clickGain = audioContext.createGain();
+    clickOsc.type = 'sine';
+    clickOsc.frequency.setValueAtTime(1768, time);
+    clickGain.gain.setValueAtTime(1.0, time);
+    clickGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+    clickOsc.connect(clickGain);
+    clickGain.connect(metronomeGainNode);
+    clickOsc.start(time);
+    clickOsc.stop(time + 0.05);
+}
+
+function startMetronomeLoop() {
+    const interval = 60 / METRO_BPM;
+    nextClickTime = audioContext.currentTime; 
+    nextClickTime = Math.max(audioContext.currentTime, nextClickTime + 0.01);
+
+    function scheduler() {
+        if (!isPlaying) return;
+        while (nextClickTime < audioContext.currentTime + 0.1) {
+            scheduleClick(nextClickTime);
+            nextClickTime += interval;
+        }
+        metronomeInterval = setTimeout(scheduler, 25);
+    }
+    scheduler();
+}
+
+function cleanupMetronome() {
+    clearTimeout(metronomeInterval);
+    metronomeInterval = null;
+}
+
+function playSound() {
+    if (isPlaying) { stopSound(); return; }
     initAudio().then(() => {
-        // Disconnect old nodes if they exist
         if (vibratoNode) { try { vibratoNode.disconnect(); } catch(e){} }
         if (gainNode) { try { gainNode.disconnect(); } catch(e){} }
+        cleanupMetronome();
 
         vibratoNode = new AudioWorkletNode(audioContext, 'vibrato-processor');
         gainNode = audioContext.createGain();
-
-        // Connect
         vibratoNode.connect(gainNode);
         gainNode.connect(audioContext.destination);
 
-        // Set Parameters
         const params = vibratoNode.parameters;
-        // A4 = 442Hz in the original app logic
         params.get('baseFrequency').setValueAtTime(442, audioContext.currentTime);
         params.get('rate').setValueAtTime(targetValues.rate, audioContext.currentTime);
         params.get('depth').setValueAtTime(targetValues.depth, audioContext.currentTime);
 
-        // Fade in
         gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(FIXED_GAIN, audioContext.currentTime + FADE_TIME);
+        gainNode.gain.linearRampToValueAtTime(NOTE_GAIN, audioContext.currentTime + FADE_TIME);
 
         isPlaying = true;
         updatePlayButtonState();
+
+        if (isMetronomeOn) startMetronomeLoop();
     });
 }
 
 function stopSound() {
-    if (!isPlaying || !gainNode) return;
-    
-    const now = audioContext.currentTime;
-    gainNode.gain.cancelScheduledValues(now);
-    gainNode.gain.setValueAtTime(gainNode.gain.value, now);
-    gainNode.gain.linearRampToValueAtTime(0, now + FADE_TIME);
-
+    if (!isPlaying) return;
+    cleanupMetronome();
+    if (gainNode) {
+        const now = audioContext.currentTime;
+        gainNode.gain.cancelScheduledValues(now);
+        gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + FADE_TIME);
+    }
     setTimeout(() => {
-        if (vibratoNode) { 
-            vibratoNode.disconnect(); 
-            vibratoNode = null;
-        }
+        if (vibratoNode) { vibratoNode.disconnect(); vibratoNode = null; }
         isPlaying = false;
         updatePlayButtonState();
     }, (FADE_TIME * 1000) + 50);
@@ -410,67 +493,43 @@ function getRandom(min, max, decimals = 0) {
 }
 
 function generateTarget() {
-    // Speed: 4 to 7 Hz
     const rate = getRandom(4, 7, 1);
-    // Amplitude: 11 to 44 cents
     const depth = getRandom(11, 44, 0);
     return { rate, depth };
 }
 
 function generateOptions(target, difficulty) {
     let opts = [target];
-    
-    // Define deviations based on difficulty
     let rateDev, depthDev;
     
-    if (difficulty === 'easy') {
-        rateDev = 1.5; // Big difference
-        depthDev = 15;
-    } else if (difficulty === 'medium') {
-        rateDev = 0.8;
-        depthDev = 8;
-    } else { // Hard
-        rateDev = 0.3; // Very subtle
-        depthDev = 4;
-    }
+    if (difficulty === 'easy') { rateDev = 1.5; depthDev = 15; }
+    else if (difficulty === 'medium') { rateDev = 0.8; depthDev = 8; }
+    else { rateDev = 0.3; depthDev = 4; }
 
-    // Generate 2 wrong answers
     for (let i = 0; i < 2; i++) {
         let newOpt;
         let valid = false;
         let attempts = 0;
-
         while (!valid && attempts < 20) {
             attempts++;
-            // Flip a coin to deviate positive or negative
             const rDir = Math.random() > 0.5 ? 1 : -1;
             const dDir = Math.random() > 0.5 ? 1 : -1;
-
-            // Add some jitter to the deviation so it's not always exactly the same distance
             const rJitter = (Math.random() * 0.4) - 0.2; 
             const dJitter = Math.floor(Math.random() * 4) - 2;
 
             let r = parseFloat((target.rate + (rateDev + rJitter) * rDir).toFixed(1));
             let d = Math.round(target.depth + (depthDev + dJitter) * dDir);
 
-            // Clamp values
             if (r < 4) r = 4; if (r > 7) r = 7;
             if (d < 11) d = 11; if (d > 44) d = 44;
 
             newOpt = { rate: r, depth: d };
-
-            // Ensure uniqueness against existing options
             const exists = opts.some(o => o.rate === newOpt.rate && o.depth === newOpt.depth);
-            
-            // Also ensure it's not TOO close to target in Hard mode (otherwise it's unfair)
             const tooClose = Math.abs(newOpt.rate - target.rate) < 0.1 && Math.abs(newOpt.depth - target.depth) < 2;
-
             if (!exists && !tooClose) valid = true;
         }
         opts.push(newOpt);
     }
-
-    // Shuffle options
     return opts.sort(() => Math.random() - 0.5);
 }
 
@@ -479,16 +538,14 @@ function startRound() {
     gameState = 'playing';
     targetValues = generateTarget();
     currentOptions = generateOptions(targetValues, currentDifficulty);
-    
     roundDisplay.textContent = `Round: ${currentRound}/${MAX_ROUNDS}`;
     scoreDisplay.textContent = `Score: ${currentScore}`;
-    
     renderOptions();
 }
 
 function renderOptions() {
     optionsContainer.innerHTML = '';
-    currentOptions.forEach((opt, index) => {
+    currentOptions.forEach((opt) => {
         const btn = document.createElement('button');
         btn.className = 'option-btn';
         btn.textContent = `Speed: ${opt.rate} Hz | Amp: ${opt.depth} cents`;
@@ -502,34 +559,32 @@ function handleGuess(selectedOption) {
     
     const isCorrect = (selectedOption.rate === targetValues.rate && selectedOption.depth === targetValues.depth);
     
-    // Prepare Feedback
+    // UI Reset
+    overlay.classList.remove('gameover', 'correct', 'wrong');
     overlay.className = 'overlay visible';
+
     if (isCorrect) {
         overlay.classList.add('correct');
-        overlay.classList.remove('wrong');
         feedbackTitle.textContent = "Correct!";
-        
-        // Calculate Score based on difficulty
         let points = 10;
         if (currentDifficulty === 'medium') points = 20;
         if (currentDifficulty === 'hard') points = 30;
         currentScore += points;
-        
-        // Nice Message
-        const praises = ["Excellent ear!", "Spot on!", "Perfect pitch perception!", "Great job!"];
+        const praises = ["Excellent ear!", "Spot on!", "Perfect pitch!", "Great job!"];
         feedbackMessage.textContent = praises[Math.floor(Math.random() * praises.length)];
     } else {
         overlay.classList.add('wrong');
-        overlay.classList.remove('correct');
         feedbackTitle.textContent = "Wrong Answer";
         feedbackMessage.innerHTML = `The correct setting was:<br><strong>${targetValues.rate} Hz / ${targetValues.depth} cents</strong>`;
     }
 
     scoreDisplay.textContent = `Score: ${currentScore}`;
 
+    // Logic for next step
     if (currentRound >= MAX_ROUNDS) {
-        nextRoundBtn.textContent = "Finish Game";
-        gameState = 'gameover';
+        // Round 5 just finished
+        nextRoundBtn.textContent = "See Results";
+        gameState = 'results';
     } else {
         nextRoundBtn.textContent = "Next Round";
         gameState = 'feedback';
@@ -537,24 +592,32 @@ function handleGuess(selectedOption) {
 }
 
 function endGame() {
-    overlay.className = 'overlay visible correct'; // Use correct style for clean look
-    feedbackTitle.textContent = "Game Over!";
+    // 1. Calculate High Score
+    overlay.classList.remove('correct', 'wrong');
+    overlay.classList.add('gameover');
+    feedbackTitle.textContent = "Game Over";
     
     let msg = `Final Score: ${currentScore}<br>`;
     
-    // Check High Score
-    const lowestHigh = highScores[2];
-    if (currentScore > lowestHigh) {
-        highScores.push(currentScore);
-        highScores.sort((a, b) => b - a);
-        highScores = highScores.slice(0, 3);
-        localStorage.setItem('vibratoHighScores', JSON.stringify(highScores));
-        msg += `<br><span class="new-record">🏆 NEW RECORD! 🏆</span>`;
-    }
+    // Sort logic
+    highScores.push(currentScore);
+    highScores.sort((a, b) => b - a); // Descending
+    highScores = highScores.slice(0, 3); // Keep top 3
     
+    // Save to LocalStorage
+    localStorage.setItem('vibratoHighScores', JSON.stringify(highScores));
+    
+    // Check if current score is among the top 3 (and not 0)
+    if (currentScore > 0 && highScores.includes(currentScore)) {
+        msg += `<br><span class="new-record">🏆 TOP SCORE! 🏆</span>`;
+    }
+
     feedbackMessage.innerHTML = msg;
     nextRoundBtn.textContent = "Play Again";
     updateHighScoresDisplay();
+    
+    // Set state so next click restarts
+    gameState = 'gameover';
 }
 
 function restartGame() {
@@ -562,41 +625,42 @@ function restartGame() {
     currentScore = 0;
     currentDifficulty = difficultySelect.value;
     difficultyLabel.textContent = `Difficulty: ${currentDifficulty.charAt(0).toUpperCase() + currentDifficulty.slice(1)}`;
-    overlay.classList.remove('visible');
+    overlay.classList.remove('visible', 'gameover');
     startRound();
 }
 
 // --- EVENT LISTENERS ---
 
-listenBtn.addEventListener('click', () => {
-    // Need user gesture to start AudioContext
-    playSound();
+listenBtn.addEventListener('click', () => { playSound(); });
+
+metroToggle.addEventListener('click', () => {
+    isMetronomeOn = !isMetronomeOn;
+    metroToggle.classList.toggle('active', isMetronomeOn);
+    metroToggle.textContent = `Metronome: ${isMetronomeOn ? 'On (60 BPM)' : 'Off'}`;
+    if (isPlaying) { stopSound(); setTimeout(playSound, 150); }
 });
 
 nextRoundBtn.addEventListener('click', () => {
-    if (gameState === 'gameover') {
-        restartGame();
-    } else if (currentRound < MAX_ROUNDS) {
-        currentRound++;
-        overlay.classList.remove('visible');
-        startRound();
-    } else {
+    if (gameState === 'results') {
+        // User clicked "See Results"
         endGame();
+    } else if (gameState === 'gameover') {
+        // User clicked "Play Again"
+        restartGame();
+    } else if (gameState === 'feedback') {
+        // User clicked "Next Round"
+        if (currentRound < MAX_ROUNDS) {
+            currentRound++;
+            overlay.classList.remove('visible');
+            startRound();
+        }
     }
 });
 
-restartBtn.addEventListener('click', () => {
-    stopSound();
-    restartGame();
-});
+restartBtn.addEventListener('click', () => { stopSound(); restartGame(); });
+difficultySelect.addEventListener('change', () => { stopSound(); restartGame(); });
 
-difficultySelect.addEventListener('change', () => {
-    // If they change difficulty mid-game, restart game
-    stopSound();
-    restartGame();
-});
-
-// Initialize
+// Init
 updateHighScoresDisplay();
 startRound();
 
