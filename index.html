@@ -844,6 +844,9 @@ function endGame() {
     overlay.classList.add('gameover');
     feedbackTitle.textContent = "Game Over";
     
+    // ALWAYS FIRE CONFETTI ON FINAL SCREEN
+    fireConfetti();
+
     if (isMultiplayer) {
         let winnerMsg = "";
         let finalHtml = "";
@@ -851,15 +854,12 @@ function endGame() {
         if (p1Score > p2Score) {
             winnerMsg = "🏆 Player 1 is the Champion! 🏆";
             finalHtml = `<p>Player 2 needs to practice more!</p>`;
-            fireConfetti();
         } else if (p2Score > p1Score) {
             winnerMsg = "🏆 Player 2 is the Champion! 🏆";
             finalHtml = `<p>Player 1 has been dethroned!</p>`;
-            fireConfetti();
         } else {
             winnerMsg = "It's a Draw!";
             finalHtml = `<p>Both ears are equally amazing!</p>`;
-            fireConfetti();
         }
         
         feedbackTitle.textContent = winnerMsg;
@@ -880,7 +880,6 @@ function endGame() {
         
         if (currentScore > 0 && highScores[currentDifficulty].includes(currentScore)) {
             msg += `<span class="new-record">🏆 TOP SCORE (${currentDifficulty.toUpperCase()})! 🏆</span>`;
-            fireConfetti();
         }
         feedbackContent.innerHTML = msg;
         updateHighScoresDisplay();
