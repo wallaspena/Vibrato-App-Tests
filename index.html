@@ -57,7 +57,7 @@
         border: 2px solid transparent;
     }
 
-    /* Wrong Answer Shake Animation (Only for Standard Modes now) */
+    /* Wrong Answer Shake Animation (Standard Modes Only) */
     @keyframes shake {
         0%, 100% { transform: translateX(0); }
         10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
@@ -274,7 +274,7 @@ resizeCanvas();
 function fireConfetti() {
     for (let i = 0; i < 100; i++) {
         particles.push({
-            // Start from CENTER of the screen (where text is)
+            // Start from CENTER
             x: window.innerWidth / 2,
             y: window.innerHeight / 2,
             // Velocity expands in ALL directions
@@ -282,7 +282,7 @@ function fireConfetti() {
             vy: (Math.random() - 0.5) * 20, 
             size: Math.random() * 8 + 4,
             color: `hsl(${Math.random() * 360}, 100%, 50%)`,
-            gravity: 0.1, // Low gravity to float longer
+            gravity: 0.1, 
             rotation: Math.random() * 360,
             rotationSpeed: (Math.random() - 0.5) * 10
         });
@@ -773,12 +773,13 @@ function handleInsaneGuess() {
             let resultMsg = "";
             if (pts1 > pts2) {
                 resultMsg = "Player 1 Wins!";
-                fireConfetti();
+                if (pts1 >= 90) fireConfetti(); // ONLY if excellent
             } else if (pts2 > pts1) {
                 resultMsg = "Player 2 Wins!";
-                fireConfetti();
+                if (pts2 >= 90) fireConfetti(); // ONLY if excellent
             } else {
                 resultMsg = "It's a Tie!";
+                if (pts1 >= 90) fireConfetti(); // Tie but high score
             }
             
             overlay.classList.remove('pass-device', 'gameover', 'correct', 'wrong');
@@ -809,12 +810,11 @@ function handleInsaneGuess() {
         overlay.classList.remove('gameover', 'correct', 'wrong');
         overlay.className = 'overlay visible';
 
-        // NO SHAKE EFFECT FOR INSANE MODE (Per request)
-        if (pts >= 70) {
+        if (pts >= 90) { // Changed threshold to 90
             fireConfetti();
             overlay.classList.add('correct');
         } else {
-            // Just neutral or wrong color, but NO shake
+            // Neutral style for lower scores, NO shake
             overlay.classList.add('wrong');
         }
 
