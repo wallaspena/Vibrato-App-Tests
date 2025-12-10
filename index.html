@@ -382,7 +382,7 @@ const METRO_BPM = 60;
 
 // --- GAME STATE ---
 const MAX_ROUNDS = 5;
-const TIME_LIMIT = 5.0; // Seconds
+const TIME_LIMIT = 10.0; // Seconds
 
 let currentRound = 1;
 let currentScore = 0;
@@ -466,7 +466,7 @@ function startCountdown() {
         timerBar.style.width = `${percent}%`;
 
         // Drama Effects
-        if (remaining <= 2.0) {
+        if (remaining <= 5.0) {
             timerDisplay.classList.add('danger');
             timerBar.style.backgroundColor = '#dc3545'; // Red
         }
