@@ -34,7 +34,13 @@
 
     /* Confetti Canvas */
     #effects-canvas {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 999;
     }
 
     .game-container {
@@ -51,7 +57,7 @@
         border: 2px solid transparent;
     }
 
-    /* Shake Animation */
+    /* Wrong Answer Shake Animation */
     @keyframes shake {
         0%, 100% { transform: translateX(0); }
         10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
@@ -67,21 +73,39 @@
     h2 { margin: 0 0 20px 0; font-size: 1rem; color: #666; font-weight: normal; }
 
     .stats-bar {
-        display: flex; justify-content: space-between; margin-bottom: 20px;
-        font-size: 0.9rem; font-weight: bold; color: #888; border-bottom: 1px solid #eee; padding-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+        font-weight: bold;
+        color: #888;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
     }
     
     .stats-bar.multi { color: var(--text); }
 
     .play-section {
-        display: flex; flex-direction: column; align-items: center; gap: 15px; margin-bottom: 25px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 25px;
     }
 
     .listen-btn {
-        width: 80px; height: 80px; border-radius: 50%; background: var(--accent); border: none;
-        color: white; font-size: 1.5rem; cursor: pointer;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: none;
+        color: white;
+        font-size: 1.5rem;
+        cursor: pointer;
         transition: transform 0.1s, background-color 0.2s;
-        display: flex; align-items: center; justify-content: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     }
     
@@ -105,13 +129,10 @@
 
     .icon { width: 30px; height: 30px; fill: white; }
 
-    /* DYNAMIC OPTIONS GRID */
-    /* This makes the buttons wrap nicely depending on how many there are */
     .options-grid {
         display: grid;
         gap: 10px;
         margin-bottom: 20px;
-        /* Auto-fit columns: nice for 2, 3 or 5 buttons */
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     }
 
@@ -181,6 +202,9 @@
     .high-scores {
         margin-top: 30px; font-size: 0.85rem; color: #777; text-align: left; width: 100%; max-width: 400px;
     }
+    .high-scores-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .reset-btn { font-size: 0.7rem; padding: 2px 8px; background: transparent; border: 1px solid #ccc; color: #999; border-radius: 4px; cursor: pointer; }
+    .reset-btn:hover { color: var(--error); border-color: var(--error); }
     .high-scores ol { padding-left: 20px; }
 
     @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
@@ -190,6 +214,7 @@
 </head>
 <body>
 
+<!-- Effects Canvas -->
 <canvas id="effects-canvas"></canvas>
 
 <div class="game-container" id="game-card">
@@ -236,7 +261,10 @@
 </div>
 
 <div class="high-scores" id="hs-container">
-    <strong id="highscore-title">Top 3 High Scores (Medium):</strong>
+    <div class="high-scores-header">
+        <strong id="highscore-title">Top 3 High Scores:</strong>
+        <button id="reset-score-btn" class="reset-btn">Reset</button>
+    </div>
     <ol id="highscore-list"></ol>
 </div>
 
@@ -333,7 +361,8 @@ const NOTE_GAIN = 0.60; const CLICK_GAIN = 0.25; const FADE_TIME = 0.05; const S
 // --- GAME STATE ---
 const MAX_ROUNDS = 5;
 let currentRound = 1; let currentScore = 0; let currentDifficulty = 'medium';
-let targetValues = { rate: 0, depth: 0 }; let currentOptions = []; let gameState = 'waiting'; 
+let targetValues = { rate: 0, depth: 0 }; let lastTargetValues = null; 
+let currentOptions = []; let gameState = 'waiting'; 
 let isMultiplayer = false; let activePlayer = 1; let p1Score = 0; let p2Score = 0; let p1Guess = null; 
 
 const defaultScores = { easy: [0,0,0], medium: [0,0,0], hard: [0,0,0], insane: [0,0,0] };
@@ -355,6 +384,7 @@ const scoreDisplay = document.getElementById('score-display');
 const difficultySelect = document.getElementById('difficulty-select');
 const difficultyLabel = document.getElementById('difficulty-label');
 const restartBtn = document.getElementById('restart-btn');
+const resetScoreBtn = document.getElementById('reset-score-btn');
 const overlay = document.getElementById('feedback-overlay');
 const feedbackTitle = document.getElementById('feedback-title');
 const feedbackContent = document.getElementById('feedback-content');
@@ -468,35 +498,51 @@ function getRandom(min, max, decimals = 0) {
 }
 
 function generateTarget() {
-    const rate = getRandom(4, 7, 1);
-    const depth = getRandom(11, 44, 0);
+    let rate, depth;
+    let attempts = 0;
+    
+    // SMART RANDOMIZATION: Prevent duplicates or very close previous answers
+    do {
+        rate = getRandom(4, 7, 1);
+        depth = getRandom(11, 44, 0);
+        attempts++;
+        
+        if (lastTargetValues) {
+            // Must be at least 1.0 Hz OR 10 cents different from last time
+            const rateDiff = Math.abs(rate - lastTargetValues.rate);
+            const depthDiff = Math.abs(depth - lastTargetValues.depth);
+            
+            if (rateDiff >= 1.0 || depthDiff >= 10) {
+                break; // Good new target
+            }
+            if (attempts > 50) break; // Emergency exit loop
+        } else {
+            break; // First round
+        }
+    } while (true);
+
+    lastTargetValues = { rate, depth };
     return { rate, depth };
 }
 
 function generateOptions(target, difficulty) {
     if (difficulty === 'insane') return [];
     
-    // PROGRESSIVE DIFFICULTY LOGIC
     let numOptions, rateDev, depthDev;
     
+    // NEW DIFFICULTY SETTINGS
     switch(difficulty) {
         case 'easy':
-            numOptions = 2; // Binary choice
-            rateDev = 2.0;  // Obvious
-            depthDev = 20;
+            numOptions = 2; rateDev = 3.0; depthDev = 30; // 3.0Hz / 30 cents
             break;
         case 'medium':
-            numOptions = 3; // Standard
-            rateDev = 1.0;
-            depthDev = 10;
+            numOptions = 3; rateDev = 2.0; depthDev = 20; // 2.0Hz / 20 cents
             break;
         case 'hard':
-            numOptions = 5; // Crowded
-            rateDev = 0.4;  // Subtle
-            depthDev = 5;
+            numOptions = 5; rateDev = 1.0; depthDev = 10; // 1.0Hz / 10 cents
             break;
         default:
-            numOptions = 3; rateDev = 1.0; depthDev = 10;
+            numOptions = 3; rateDev = 2.0; depthDev = 20;
     }
 
     let opts = [target];
@@ -507,22 +553,17 @@ function generateOptions(target, difficulty) {
             attempts++;
             const rDir = Math.random() > 0.5 ? 1 : -1;
             const dDir = Math.random() > 0.5 ? 1 : -1;
-            // Add jitter so options aren't mathematically perfectly spaced
             const rJitter = (Math.random() * 0.4) - 0.2; 
             const dJitter = Math.floor(Math.random() * 4) - 2;
 
             let r = parseFloat((target.rate + (rateDev + rJitter) * rDir).toFixed(1));
             let d = Math.round(target.depth + (depthDev + dJitter) * dDir);
 
-            // Clamp
             if (r < 4) r = 4; if (r > 7) r = 7;
             if (d < 11) d = 11; if (d > 44) d = 44;
 
             newOpt = { rate: r, depth: d };
-            
-            // Check Uniqueness
             const exists = opts.some(o => o.rate === newOpt.rate && o.depth === newOpt.depth);
-            // Ensure not too close (for Hard mode)
             const tooClose = Math.abs(newOpt.rate - target.rate) < 0.1 && Math.abs(newOpt.depth - target.depth) < 2;
             
             if (!exists && !tooClose) valid = true;
@@ -707,9 +748,7 @@ function setupNextStep() {
 }
 
 function endGame() {
-    // FORCE REMOVE SHAKE ON FINAL SCREEN
     document.getElementById('game-card').classList.remove('shake-effect');
-    
     overlay.classList.remove('correct', 'wrong', 'pass-device');
     overlay.classList.add('gameover');
     feedbackTitle.textContent = "Game Over";
@@ -737,7 +776,7 @@ function endGame() {
 }
 
 function restartGame() {
-    currentRound = 1; currentScore = 0; p1Score = 0; p2Score = 0; activePlayer = 1;
+    currentRound = 1; currentScore = 0; p1Score = 0; p2Score = 0; activePlayer = 1; lastTargetValues = null;
     if (isMultiplayer) {
         difficultySelect.value = 'insane'; difficultySelect.disabled = true; 
         difficultyLabel.textContent = "Mode: Multiplayer (Insane)";
@@ -750,6 +789,17 @@ function restartGame() {
     currentDifficulty = difficultySelect.value;
     updateHighScoresDisplay(); overlay.classList.remove('visible', 'gameover'); startRound();
 }
+
+// RESET BUTTON LISTENER
+resetScoreBtn.addEventListener('click', () => {
+    const diff = difficultySelect.value;
+    const diffName = diff.charAt(0).toUpperCase() + diff.slice(1);
+    if (confirm(`Reset high scores for ${diffName} mode?`)) {
+        highScores[diff] = [0, 0, 0];
+        localStorage.setItem('vibratoHighScores', JSON.stringify(highScores));
+        updateHighScoresDisplay();
+    }
+});
 
 listenBtn.addEventListener('click', () => { playSound(); });
 metroToggle.addEventListener('click', () => {
