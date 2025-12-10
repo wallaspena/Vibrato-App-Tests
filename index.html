@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibrato Ear Trainer - Rush Mode</title>
+<title>Vibrato Ear Trainer</title>
 <style>
     :root {
         --bg: #f4f4f4;
@@ -41,37 +41,7 @@
         overflow: hidden;
     }
 
-    /* --- DRAMATIC TIMER --- */
-    .timer-wrapper {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 6px;
-        background: #eee;
-        z-index: 5;
-    }
-    
-    .timer-bar {
-        height: 100%;
-        width: 100%;
-        background-color: var(--accent);
-        transform-origin: left;
-        transition: width 0.1s linear, background-color 0.3s;
-    }
-
-    .timer-display {
-        font-size: 2rem;
-        font-weight: 800;
-        margin: 10px 0;
-        font-variant-numeric: tabular-nums;
-        color: #ccc; /* Dim until active */
-    }
-    
-    .timer-display.active { color: var(--text); }
-    .timer-display.danger { color: var(--error); animation: pulse-text 0.5s infinite; }
-
-    h1 { margin: 10px 0 5px 0; font-size: 1.2rem; letter-spacing: -0.5px; opacity: 0.7; }
+    h1 { margin: 0 0 10px 0; font-size: 1.5rem; letter-spacing: -0.5px; }
     h2 { margin: 0 0 20px 0; font-size: 1rem; color: #666; font-weight: normal; }
 
     .stats-bar {
@@ -90,7 +60,7 @@
         flex-direction: column;
         align-items: center;
         gap: 15px;
-        margin-bottom: 20px;
+        margin-bottom: 25px;
     }
 
     .listen-btn {
@@ -132,10 +102,33 @@
 
     .icon { width: 30px; height: 30px; fill: white; }
 
+    /* Grid for buttons */
     .options-grid {
         display: grid;
         gap: 10px;
         margin-bottom: 20px;
+    }
+
+    /* Insane Mode Inputs */
+    .insane-inputs {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        text-align: left;
+    }
+    .insane-inputs label {
+        font-size: 0.9rem;
+        font-weight: bold;
+        color: #555;
+    }
+    .insane-inputs input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 1rem;
+        box-sizing: border-box;
+        margin-top: 5px;
     }
 
     .option-btn {
@@ -198,7 +191,6 @@
 
     .overlay.correct h3 { color: var(--success); }
     .overlay.wrong h3 { color: var(--error); }
-    .overlay.expired h3 { color: var(--error); font-weight: 900; letter-spacing: 1px; }
     .overlay.gameover h3 { color: var(--text); }
 
     .high-scores {
@@ -216,13 +208,6 @@
         50% { transform: scale(1.1); }
         100% { transform: scale(1); }
     }
-    
-    @keyframes pulse-text {
-        0% { opacity: 1; }
-        50% { opacity: 0.6; }
-        100% { opacity: 1; }
-    }
-    
     .new-record { color: #d63384; animation: pulse 1s infinite; font-weight: bold; display: block; margin-top: 10px; }
 
 </style>
@@ -230,16 +215,8 @@
 <body>
 
 <div class="game-container">
-    <!-- Drama Timer Bar -->
-    <div class="timer-wrapper">
-        <div id="timer-bar" class="timer-bar"></div>
-    </div>
-
     <h1>Vibrato Quiz</h1>
     <h2 id="difficulty-label">Difficulty: Medium</h2>
-
-    <!-- Big Timer Text -->
-    <div id="timer-display" class="timer-display">5.0</div>
 
     <div class="stats-bar">
         <span id="round-display">Round: 1/5</span>
@@ -267,6 +244,7 @@
             <option value="easy">Easy</option>
             <option value="medium" selected>Medium</option>
             <option value="hard">Hard</option>
+            <option value="insane">Insane</option>
         </select>
         <button id="restart-btn" class="action-btn">Restart Game</button>
     </div>
@@ -286,7 +264,7 @@
 
 <script>
 /**
- * --- AUDIO ENGINE (WITH EXACT SYNC) ---
+ * --- AUDIO ENGINE ---
  */
 const workletCode = `
 class VibratoProcessor extends AudioWorkletProcessor {
@@ -382,8 +360,6 @@ const METRO_BPM = 60;
 
 // --- GAME STATE ---
 const MAX_ROUNDS = 5;
-const TIME_LIMIT = 10.0; // Seconds
-
 let currentRound = 1;
 let currentScore = 0;
 let currentDifficulty = 'medium';
@@ -391,23 +367,20 @@ let targetValues = { rate: 0, depth: 0 };
 let currentOptions = [];
 let gameState = 'waiting'; 
 
-// Timer State
-let timerInterval = null;
-let timeLeft = TIME_LIMIT;
-let timerHasStarted = false; // Flag to ensure timer starts on FIRST play click
-
-// --- HIGH SCORE LOGIC (INDEPENDENT) ---
+// --- HIGH SCORE LOGIC ---
 const defaultScores = {
     easy: [0, 0, 0],
     medium: [0, 0, 0],
-    hard: [0, 0, 0]
+    hard: [0, 0, 0],
+    insane: [0, 0, 0] // Added Insane
 };
+
 let highScores = defaultScores;
 try {
     const saved = localStorage.getItem('vibratoHighScores');
     if (saved) {
         highScores = JSON.parse(saved);
-        if (!highScores.easy) highScores = defaultScores;
+        if (!highScores.insane) highScores.insane = [0, 0, 0]; // Backwards compatibility
     }
 } catch (e) { highScores = defaultScores; }
 
@@ -428,75 +401,6 @@ const feedbackMessage = document.getElementById('feedback-message');
 const nextRoundBtn = document.getElementById('next-round-btn');
 const highscoreList = document.getElementById('highscore-list');
 const highscoreTitle = document.getElementById('highscore-title');
-
-// Timer Elements
-const timerDisplay = document.getElementById('timer-display');
-const timerBar = document.getElementById('timer-bar');
-
-// --- TIMER FUNCTIONS ---
-
-function resetTimerUI() {
-    clearInterval(timerInterval);
-    timeLeft = TIME_LIMIT;
-    timerHasStarted = false;
-    
-    // UI Reset
-    timerDisplay.textContent = TIME_LIMIT.toFixed(1);
-    timerDisplay.classList.remove('active', 'danger');
-    timerBar.style.width = '100%';
-    timerBar.style.backgroundColor = '#000'; // Reset color
-}
-
-function startCountdown() {
-    if (timerHasStarted) return; // Don't restart if already running
-    timerHasStarted = true;
-    timerDisplay.classList.add('active');
-
-    const startTime = Date.now();
-    const endTime = startTime + (timeLeft * 1000);
-
-    timerInterval = setInterval(() => {
-        const now = Date.now();
-        const remaining = Math.max(0, (endTime - now) / 1000);
-        timeLeft = remaining;
-
-        // Visual Updates
-        timerDisplay.textContent = remaining.toFixed(1);
-        const percent = (remaining / TIME_LIMIT) * 100;
-        timerBar.style.width = `${percent}%`;
-
-        // Drama Effects
-        if (remaining <= 5.0) {
-            timerDisplay.classList.add('danger');
-            timerBar.style.backgroundColor = '#dc3545'; // Red
-        }
-
-        if (remaining <= 0) {
-            clearInterval(timerInterval);
-            handleTimeExpired();
-        }
-    }, 50);
-}
-
-function stopCountdown() {
-    clearInterval(timerInterval);
-}
-
-function handleTimeExpired() {
-    stopSound();
-    
-    // Treat as wrong answer
-    overlay.classList.remove('gameover', 'correct', 'wrong');
-    overlay.classList.add('expired', 'visible'); // Special "Expired" style
-
-    feedbackTitle.textContent = "TIME EXPIRED!";
-    feedbackMessage.innerHTML = `You ran out of time.<br><br>The correct answer was:<br><strong>${targetValues.rate} Hz / ${targetValues.depth} cents</strong>`;
-    
-    // Score does not increase
-    scoreDisplay.textContent = `Score: ${currentScore}`;
-
-    setupNextStep();
-}
 
 // --- AUDIO FUNCTIONS ---
 async function initAudio() {
@@ -555,10 +459,6 @@ function cleanupMetronome() {
 
 function playSound() {
     if (isPlaying) { stopSound(); return; }
-    
-    // START THE DRAMA TIMER ON PLAY
-    startCountdown();
-
     initAudio().then(() => {
         if (vibratoNode) { try { vibratoNode.disconnect(); } catch(e){} }
         if (gainNode) { try { gainNode.disconnect(); } catch(e){} }
@@ -624,7 +524,10 @@ function updateHighScoresDisplay() {
     const scores = highScores[diff] || [0,0,0];
     const diffName = diff.charAt(0).toUpperCase() + diff.slice(1);
     highscoreTitle.textContent = `Top 3 High Scores (${diffName}):`;
-    highscoreList.innerHTML = scores.map(score => `<li>${score} pts</li>`).join('');
+
+    highscoreList.innerHTML = scores
+        .map(score => `<li>${score} pts</li>`)
+        .join('');
 }
 
 function getRandom(min, max, decimals = 0) {
@@ -639,6 +542,9 @@ function generateTarget() {
 }
 
 function generateOptions(target, difficulty) {
+    // For Insane mode, we don't generate multiple choice options
+    if (difficulty === 'insane') return [];
+
     let opts = [target];
     let rateDev, depthDev;
     
@@ -675,33 +581,50 @@ function generateOptions(target, difficulty) {
 
 function startRound() {
     stopSound();
-    resetTimerUI(); // Reset timer for new round
     gameState = 'playing';
     targetValues = generateTarget();
     currentOptions = generateOptions(targetValues, currentDifficulty);
     roundDisplay.textContent = `Round: ${currentRound}/${MAX_ROUNDS}`;
     scoreDisplay.textContent = `Score: ${currentScore}`;
-    renderOptions();
+    renderUI();
 }
 
-function renderOptions() {
+function renderUI() {
     optionsContainer.innerHTML = '';
-    currentOptions.forEach((opt) => {
-        const btn = document.createElement('button');
-        btn.className = 'option-btn';
-        btn.textContent = `Speed: ${opt.rate} Hz | Amp: ${opt.depth} cents`;
-        btn.onclick = () => handleGuess(opt);
-        optionsContainer.appendChild(btn);
-    });
+
+    if (currentDifficulty === 'insane') {
+        // Render Input Fields for Insane Mode
+        const insaneDiv = document.createElement('div');
+        insaneDiv.className = 'insane-inputs';
+        
+        insaneDiv.innerHTML = `
+            <label>Speed (Hz): <input type="number" id="input-rate" step="0.1" placeholder="4.0 - 7.0"></label>
+            <label>Amplitude (cents): <input type="number" id="input-depth" step="1" placeholder="11 - 44"></label>
+            <button id="submit-insane" class="action-btn" style="width:100%; margin-top:10px; background-color: var(--accent);">Submit Answer</button>
+        `;
+        optionsContainer.appendChild(insaneDiv);
+        
+        // Bind click event inside function scope to access logic
+        document.getElementById('submit-insane').addEventListener('click', handleInsaneGuess);
+
+    } else {
+        // Render Buttons for Standard Modes
+        optionsContainer.className = 'options-grid'; // Ensure grid class is there
+        currentOptions.forEach((opt) => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.textContent = `Speed: ${opt.rate} Hz | Amp: ${opt.depth} cents`;
+            btn.onclick = () => handleStandardGuess(opt);
+            optionsContainer.appendChild(btn);
+        });
+    }
 }
 
-function handleGuess(selectedOption) {
+function handleStandardGuess(selectedOption) {
     stopSound();
-    stopCountdown(); // Stop the timer immediately
-    
     const isCorrect = (selectedOption.rate === targetValues.rate && selectedOption.depth === targetValues.depth);
     
-    overlay.classList.remove('gameover', 'correct', 'wrong', 'expired');
+    overlay.classList.remove('gameover', 'correct', 'wrong');
     overlay.className = 'overlay visible';
 
     if (isCorrect) {
@@ -723,6 +646,65 @@ function handleGuess(selectedOption) {
     setupNextStep();
 }
 
+function handleInsaneGuess() {
+    stopSound();
+    
+    const rateInput = document.getElementById('input-rate');
+    const depthInput = document.getElementById('input-depth');
+    
+    if (!rateInput.value || !depthInput.value) {
+        alert("Please enter both Speed and Amplitude values.");
+        return;
+    }
+
+    const userRate = parseFloat(rateInput.value);
+    const userDepth = parseFloat(depthInput.value);
+
+    // Calculate Scores Proportional to Error
+    // Formula: 50 * (1 - (Error / Actual))
+    // Max 50 points each.
+    
+    // 1. Rate Score
+    const rateDiff = Math.abs(userRate - targetValues.rate);
+    const rateErrorPct = rateDiff / targetValues.rate;
+    let rateScore = 50 * (1 - rateErrorPct * 2); // Multiplier makes scoring slightly stricter
+    if (rateScore < 0) rateScore = 0;
+
+    // 2. Depth Score
+    const depthDiff = Math.abs(userDepth - targetValues.depth);
+    const depthErrorPct = depthDiff / targetValues.depth;
+    let depthScore = 50 * (1 - depthErrorPct * 2);
+    if (depthScore < 0) depthScore = 0;
+
+    // Perfect match bonus? Only if inputs equal targets exactly
+    if (userRate === targetValues.rate) rateScore = 50;
+    if (userDepth === targetValues.depth) depthScore = 50;
+
+    const roundPoints = Math.round(rateScore + depthScore);
+    currentScore += roundPoints;
+
+    // Feedback UI
+    overlay.classList.remove('gameover', 'correct', 'wrong');
+    overlay.className = 'overlay visible';
+
+    if (roundPoints === 100) {
+        overlay.classList.add('correct');
+        feedbackTitle.textContent = "PERFECT!";
+        feedbackMessage.innerHTML = `You earned <strong>100 points</strong>!`;
+    } else if (roundPoints >= 70) {
+        overlay.classList.add('correct');
+        feedbackTitle.textContent = "Great Guess!";
+        feedbackMessage.innerHTML = `You earned <strong>${roundPoints} points</strong>.<br><br>Target: ${targetValues.rate}Hz / ${targetValues.depth} cents<br>You: ${userRate}Hz / ${userDepth} cents`;
+    } else {
+        overlay.classList.add('wrong');
+        feedbackTitle.textContent = "Result";
+        feedbackMessage.innerHTML = `You earned <strong>${roundPoints} points</strong>.<br><br>Target: ${targetValues.rate}Hz / ${targetValues.depth} cents<br>You: ${userRate}Hz / ${userDepth} cents`;
+    }
+
+    scoreDisplay.textContent = `Score: ${currentScore}`;
+    setupNextStep();
+}
+
 function setupNextStep() {
     if (currentRound >= MAX_ROUNDS) {
         nextRoundBtn.textContent = "See Results";
@@ -734,7 +716,7 @@ function setupNextStep() {
 }
 
 function endGame() {
-    overlay.classList.remove('correct', 'wrong', 'expired');
+    overlay.classList.remove('correct', 'wrong');
     overlay.classList.add('gameover');
     feedbackTitle.textContent = "Game Over";
     
@@ -762,7 +744,7 @@ function restartGame() {
     currentDifficulty = difficultySelect.value;
     difficultyLabel.textContent = `Difficulty: ${currentDifficulty.charAt(0).toUpperCase() + currentDifficulty.slice(1)}`;
     updateHighScoresDisplay();
-    overlay.classList.remove('visible', 'gameover', 'expired');
+    overlay.classList.remove('visible', 'gameover');
     startRound();
 }
 
