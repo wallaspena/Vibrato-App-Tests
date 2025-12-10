@@ -12,6 +12,8 @@
         --accent: #000000;
         --success: #28a745;
         --error: #dc3545;
+        --p1: #007bff;
+        --p2: #d63384;
         --radius: 12px;
     }
 
@@ -54,6 +56,10 @@
         border-bottom: 1px solid #eee;
         padding-bottom: 10px;
     }
+    
+    .stats-bar.multi {
+        color: var(--text);
+    }
 
     .play-section {
         display: flex;
@@ -82,7 +88,13 @@
     .listen-btn:active { transform: scale(0.95); }
     .listen-btn.playing { background-color: #444; }
 
-    .metro-toggle {
+    .toggle-row {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+    }
+
+    .metro-toggle, .multi-toggle {
         background: none;
         border: 1px solid #ddd;
         padding: 6px 12px;
@@ -93,16 +105,21 @@
         transition: all 0.2s;
     }
 
-    .metro-toggle.active {
+    .metro-toggle.active, .multi-toggle.active {
         background-color: #e0e0e0;
         color: #000;
         border-color: #999;
         font-weight: bold;
     }
+    
+    .multi-toggle.active {
+        background-color: var(--text);
+        color: white;
+        border-color: var(--text);
+    }
 
     .icon { width: 30px; height: 30px; fill: white; }
 
-    /* Grid for buttons */
     .options-grid {
         display: grid;
         gap: 10px;
@@ -116,98 +133,80 @@
         gap: 15px;
         text-align: left;
     }
-    .insane-inputs label {
-        font-size: 0.9rem;
-        font-weight: bold;
-        color: #555;
-    }
+    .insane-inputs label { font-size: 0.9rem; font-weight: bold; color: #555; }
     .insane-inputs input {
-        width: 100%;
-        padding: 10px;
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        font-size: 1rem;
-        box-sizing: border-box;
-        margin-top: 5px;
+        width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px;
+        font-size: 1rem; box-sizing: border-box; margin-top: 5px;
     }
+    
+    /* Player Turn Indicators */
+    .turn-indicator {
+        font-weight: bold;
+        margin-bottom: 10px;
+        display: block;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 1px;
+    }
+    .p1-turn { color: var(--p1); }
+    .p2-turn { color: var(--p2); }
 
     .option-btn {
-        background: white;
-        border: 2px solid #eee;
-        padding: 15px;
-        border-radius: 8px;
-        font-size: 1rem;
-        cursor: pointer;
-        transition: all 0.2s;
-        font-weight: 500;
+        background: white; border: 2px solid #eee; padding: 15px;
+        border-radius: 8px; font-size: 1rem; cursor: pointer; transition: all 0.2s; font-weight: 500;
     }
-
     .option-btn:hover { border-color: #ccc; }
     .option-btn:active { background-color: #f9f9f9; }
 
     .controls {
-        display: flex;
-        gap: 10px;
-        justify-content: center;
-        margin-top: 20px;
+        display: flex; gap: 10px; justify-content: center; margin-top: 20px;
     }
 
     select, .action-btn {
-        padding: 10px 15px;
-        border-radius: 6px;
-        border: 1px solid #ccc;
-        background: white;
-        font-size: 0.9rem;
-        cursor: pointer;
+        padding: 10px 15px; border-radius: 6px; border: 1px solid #ccc;
+        background: white; font-size: 0.9rem; cursor: pointer;
     }
-    
     .action-btn { background: var(--accent); color: white; border: none; }
 
     /* Modal Overlay */
     .overlay {
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
         background: rgba(255,255,255,0.98);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.3s;
-        padding: 20px;
-        z-index: 10;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        opacity: 0; pointer-events: none; transition: opacity 0.3s; padding: 20px; z-index: 10;
     }
-    
     .overlay.visible { opacity: 1; pointer-events: all; }
-    
     .overlay h3 { font-size: 2rem; margin: 0 0 10px 0; }
     .overlay p { font-size: 1.1rem; color: #555; margin-bottom: 20px; }
+    
+    /* Next Button */
     .overlay .btn-next {
         background: var(--accent); color: white; border: none;
-        padding: 12px 30px; font-size: 1rem; border-radius: 25px;
-        cursor: pointer;
+        padding: 12px 30px; font-size: 1rem; border-radius: 25px; cursor: pointer;
     }
 
-    .overlay.correct h3 { color: var(--success); }
-    .overlay.wrong h3 { color: var(--error); }
-    .overlay.gameover h3 { color: var(--text); }
+    /* Pass Device Screen */
+    .overlay.pass-device { background: var(--text); }
+    .overlay.pass-device h3 { color: white; }
+    .overlay.pass-device p { color: #ccc; }
+    .overlay.pass-device .btn-next { background: white; color: black; }
+
+    /* Multiplayer Results Styling */
+    .mp-results-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; margin-bottom: 20px;
+    }
+    .mp-card {
+        background: #f9f9f9; padding: 10px; border-radius: 8px; font-size: 0.9rem;
+    }
+    .mp-card.winner { border: 2px solid #ffd700; background: #fffbe6; }
+    .mp-score-text { font-size: 1.2rem; font-weight: bold; display: block; margin-top: 5px; }
 
     .high-scores {
-        margin-top: 30px;
-        font-size: 0.85rem;
-        color: #777;
-        text-align: left;
-        width: 100%;
-        max-width: 400px;
+        margin-top: 30px; font-size: 0.85rem; color: #777; text-align: left; width: 100%; max-width: 400px;
     }
     .high-scores ol { padding-left: 20px; }
 
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.1); }
-        100% { transform: scale(1); }
-    }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     .new-record { color: #d63384; animation: pulse 1s infinite; font-weight: bold; display: block; margin-top: 10px; }
 
 </style>
@@ -218,7 +217,7 @@
     <h1>Vibrato Quiz</h1>
     <h2 id="difficulty-label">Difficulty: Medium</h2>
 
-    <div class="stats-bar">
+    <div class="stats-bar" id="stats-bar">
         <span id="round-display">Round: 1/5</span>
         <span id="score-display">Score: 0</span>
     </div>
@@ -230,11 +229,12 @@
             <svg id="icon-stop" class="icon" viewBox="0 0 24 24" style="display:none"><path d="M6 6h12v12H6z"/></svg>
         </button>
         
-        <!-- Metronome Toggle -->
-        <button id="metro-toggle" class="metro-toggle">
-            Metronome: Off
-        </button>
-        <div style="font-size: 0.8rem; color: #999; margin-top: -10px;">(A4 Note)</div>
+        <div class="toggle-row">
+            <button id="metro-toggle" class="metro-toggle">Metronome: Off</button>
+            <button id="multi-toggle" class="multi-toggle">Multiplayer: Off</button>
+        </div>
+        
+        <div style="font-size: 0.8rem; color: #999; margin-top: 5px;">(A4 Note)</div>
     </div>
 
     <div id="options-container" class="options-grid"></div>
@@ -252,12 +252,12 @@
     <!-- Feedback Overlay -->
     <div id="feedback-overlay" class="overlay">
         <h3 id="feedback-title">Correct!</h3>
-        <p id="feedback-message"></p>
+        <div id="feedback-content"></div>
         <button id="next-round-btn" class="btn-next">Next Round</button>
     </div>
 </div>
 
-<div class="high-scores">
+<div class="high-scores" id="hs-container">
     <strong id="highscore-title">Top 3 High Scores (Medium):</strong>
     <ol id="highscore-list"></ol>
 </div>
@@ -281,7 +281,6 @@ class VibratoProcessor extends AudioWorkletProcessor {
     this.carrierPhase = 0;
     this.lfoPhase = 0;
     this.previousInstantaneousFreq = 0;
-    
     this.startTime = -1;
     this.port.onmessage = (e) => {
       if (e.data.startTime !== undefined) {
@@ -315,7 +314,6 @@ class VibratoProcessor extends AudioWorkletProcessor {
       const effectiveDepth = currentDepth * calibrationFactor;
 
       const lfoValue = Math.sin(this.lfoPhase * twoPi);
-
       const centsShift = lfoValue * effectiveDepth;
       const frequencyMultiplier = Math.pow(2, centsShift / 1200);
       const targetInstantaneousFreq = currentBaseFreq * frequencyMultiplier;
@@ -329,13 +327,11 @@ class VibratoProcessor extends AudioWorkletProcessor {
       this.previousInstantaneousFreq = targetInstantaneousFreq;
 
       if (this.carrierPhase >= 1.0) this.carrierPhase -= 1.0;
-      
       outputChannel[i] = Math.sin(this.carrierPhase * twoPi);
 
       this.lfoPhase += currentRate * inverseSampleRate;
       if (this.lfoPhase >= 1.0) this.lfoPhase -= 1.0;
     }
-
     return true;
   }
 }
@@ -346,11 +342,9 @@ let audioContext = null;
 let vibratoNode = null;
 let gainNode = null;
 let metronomeGainNode = null;
-
 let isPlaying = false;
 let isMetronomeOn = false;
 let metronomeInterval = null;
-let nextClickTime = 0;
 
 const NOTE_GAIN = 0.60;
 const CLICK_GAIN = 0.25;
@@ -367,26 +361,28 @@ let targetValues = { rate: 0, depth: 0 };
 let currentOptions = [];
 let gameState = 'waiting'; 
 
-// --- HIGH SCORE LOGIC ---
-const defaultScores = {
-    easy: [0, 0, 0],
-    medium: [0, 0, 0],
-    hard: [0, 0, 0],
-    insane: [0, 0, 0] // Added Insane
-};
+// Multiplayer State
+let isMultiplayer = false;
+let activePlayer = 1; // 1 or 2
+let p1Score = 0;
+let p2Score = 0;
+let p1Guess = null; // Store P1 guess to compare later
 
+// --- HIGH SCORE LOGIC ---
+const defaultScores = { easy: [0,0,0], medium: [0,0,0], hard: [0,0,0], insane: [0,0,0] };
 let highScores = defaultScores;
 try {
     const saved = localStorage.getItem('vibratoHighScores');
     if (saved) {
         highScores = JSON.parse(saved);
-        if (!highScores.insane) highScores.insane = [0, 0, 0]; // Backwards compatibility
+        if (!highScores.insane) highScores.insane = [0,0,0];
     }
 } catch (e) { highScores = defaultScores; }
 
 // --- DOM ELEMENTS ---
 const listenBtn = document.getElementById('listen-btn');
 const metroToggle = document.getElementById('metro-toggle');
+const multiToggle = document.getElementById('multi-toggle');
 const iconPlay = document.getElementById('icon-play');
 const iconStop = document.getElementById('icon-stop');
 const optionsContainer = document.getElementById('options-container');
@@ -397,10 +393,12 @@ const difficultyLabel = document.getElementById('difficulty-label');
 const restartBtn = document.getElementById('restart-btn');
 const overlay = document.getElementById('feedback-overlay');
 const feedbackTitle = document.getElementById('feedback-title');
-const feedbackMessage = document.getElementById('feedback-message');
+const feedbackContent = document.getElementById('feedback-content');
 const nextRoundBtn = document.getElementById('next-round-btn');
 const highscoreList = document.getElementById('highscore-list');
 const highscoreTitle = document.getElementById('highscore-title');
+const hsContainer = document.getElementById('hs-container');
+const statsBar = document.getElementById('stats-bar');
 
 // --- AUDIO FUNCTIONS ---
 async function initAudio() {
@@ -410,9 +408,7 @@ async function initAudio() {
         const url = URL.createObjectURL(blob);
         await audioContext.audioWorklet.addModule(url);
     }
-    if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-    }
+    if (audioContext.state === 'suspended') await audioContext.resume();
 }
 
 function createMetronomePath() {
@@ -439,8 +435,7 @@ function scheduleClick(time) {
 
 function startMetronomeLoop(startTime) {
     const interval = 60 / METRO_BPM;
-    nextClickTime = startTime; 
-
+    let nextClickTime = startTime; 
     function scheduler() {
         if (!isPlaying) return;
         while (nextClickTime < audioContext.currentTime + 0.1) {
@@ -520,14 +515,16 @@ function updatePlayButtonState() {
 // --- GAME LOGIC ---
 
 function updateHighScoresDisplay() {
+    if (isMultiplayer) {
+        hsContainer.style.display = 'none';
+        return;
+    }
+    hsContainer.style.display = 'block';
     const diff = difficultySelect.value;
     const scores = highScores[diff] || [0,0,0];
     const diffName = diff.charAt(0).toUpperCase() + diff.slice(1);
     highscoreTitle.textContent = `Top 3 High Scores (${diffName}):`;
-
-    highscoreList.innerHTML = scores
-        .map(score => `<li>${score} pts</li>`)
-        .join('');
+    highscoreList.innerHTML = scores.map(score => `<li>${score} pts</li>`).join('');
 }
 
 function getRandom(min, max, decimals = 0) {
@@ -542,12 +539,9 @@ function generateTarget() {
 }
 
 function generateOptions(target, difficulty) {
-    // For Insane mode, we don't generate multiple choice options
     if (difficulty === 'insane') return [];
-
     let opts = [target];
     let rateDev, depthDev;
-    
     if (difficulty === 'easy') { rateDev = 1.5; depthDev = 15; }
     else if (difficulty === 'medium') { rateDev = 0.8; depthDev = 8; }
     else { rateDev = 0.3; depthDev = 4; }
@@ -562,13 +556,10 @@ function generateOptions(target, difficulty) {
             const dDir = Math.random() > 0.5 ? 1 : -1;
             const rJitter = (Math.random() * 0.4) - 0.2; 
             const dJitter = Math.floor(Math.random() * 4) - 2;
-
             let r = parseFloat((target.rate + (rateDev + rJitter) * rDir).toFixed(1));
             let d = Math.round(target.depth + (depthDev + dJitter) * dDir);
-
             if (r < 4) r = 4; if (r > 7) r = 7;
             if (d < 11) d = 11; if (d > 44) d = 44;
-
             newOpt = { rate: r, depth: d };
             const exists = opts.some(o => o.rate === newOpt.rate && o.depth === newOpt.depth);
             const tooClose = Math.abs(newOpt.rate - target.rate) < 0.1 && Math.abs(newOpt.depth - target.depth) < 2;
@@ -582,10 +573,24 @@ function generateOptions(target, difficulty) {
 function startRound() {
     stopSound();
     gameState = 'playing';
-    targetValues = generateTarget();
-    currentOptions = generateOptions(targetValues, currentDifficulty);
+    
+    // In MP, P1 generates target. P2 uses same target.
+    if (!isMultiplayer || (isMultiplayer && activePlayer === 1)) {
+        targetValues = generateTarget();
+        currentOptions = generateOptions(targetValues, currentDifficulty);
+    }
+
     roundDisplay.textContent = `Round: ${currentRound}/${MAX_ROUNDS}`;
-    scoreDisplay.textContent = `Score: ${currentScore}`;
+    
+    // Scoreboard Update
+    if (isMultiplayer) {
+        statsBar.classList.add('multi');
+        scoreDisplay.innerHTML = `<span style="color:var(--p1)">P1: ${p1Score}</span> | <span style="color:var(--p2)">P2: ${p2Score}</span>`;
+    } else {
+        statsBar.classList.remove('multi');
+        scoreDisplay.textContent = `Score: ${currentScore}`;
+    }
+    
     renderUI();
 }
 
@@ -593,23 +598,33 @@ function renderUI() {
     optionsContainer.innerHTML = '';
 
     if (currentDifficulty === 'insane') {
-        // Render Input Fields for Insane Mode
         const insaneDiv = document.createElement('div');
         insaneDiv.className = 'insane-inputs';
         
+        let turnHtml = '';
+        let btnText = 'Submit Answer';
+        
+        if (isMultiplayer) {
+            if (activePlayer === 1) {
+                turnHtml = `<span class="turn-indicator p1-turn">Player 1's Turn</span>`;
+                btnText = 'Submit (Player 1)';
+            } else {
+                turnHtml = `<span class="turn-indicator p2-turn">Player 2's Turn</span>`;
+                btnText = 'Submit (Player 2)';
+            }
+        }
+
         insaneDiv.innerHTML = `
+            ${turnHtml}
             <label>Speed (Hz): <input type="number" id="input-rate" step="0.1" placeholder="4.0 - 7.0"></label>
             <label>Amplitude (cents): <input type="number" id="input-depth" step="1" placeholder="11 - 44"></label>
-            <button id="submit-insane" class="action-btn" style="width:100%; margin-top:10px; background-color: var(--accent);">Submit Answer</button>
+            <button id="submit-insane" class="action-btn" style="width:100%; margin-top:10px; background-color: var(--accent);">${btnText}</button>
         `;
         optionsContainer.appendChild(insaneDiv);
-        
-        // Bind click event inside function scope to access logic
         document.getElementById('submit-insane').addEventListener('click', handleInsaneGuess);
-
     } else {
-        // Render Buttons for Standard Modes
-        optionsContainer.className = 'options-grid'; // Ensure grid class is there
+        // Standard Buttons
+        optionsContainer.className = 'options-grid';
         currentOptions.forEach((opt) => {
             const btn = document.createElement('button');
             btn.className = 'option-btn';
@@ -624,7 +639,7 @@ function handleStandardGuess(selectedOption) {
     stopSound();
     const isCorrect = (selectedOption.rate === targetValues.rate && selectedOption.depth === targetValues.depth);
     
-    overlay.classList.remove('gameover', 'correct', 'wrong');
+    overlay.classList.remove('gameover', 'correct', 'wrong', 'pass-device');
     overlay.className = 'overlay visible';
 
     if (isCorrect) {
@@ -634,16 +649,32 @@ function handleStandardGuess(selectedOption) {
         if (currentDifficulty === 'medium') points = 20;
         if (currentDifficulty === 'hard') points = 30;
         currentScore += points;
-        const praises = ["Excellent ear!", "Spot on!", "Perfect pitch!", "Great job!"];
-        feedbackMessage.textContent = praises[Math.floor(Math.random() * praises.length)];
+        feedbackContent.innerHTML = `<p>Perfect pitch perception!</p>`;
     } else {
         overlay.classList.add('wrong');
         feedbackTitle.textContent = "Wrong Answer";
-        feedbackMessage.innerHTML = `The correct setting was:<br><strong>${targetValues.rate} Hz / ${targetValues.depth} cents</strong>`;
+        feedbackContent.innerHTML = `<p>Correct: <strong>${targetValues.rate} Hz / ${targetValues.depth} cents</strong></p>`;
     }
 
     scoreDisplay.textContent = `Score: ${currentScore}`;
     setupNextStep();
+}
+
+function calculateScore(userRate, userDepth) {
+    const rateDiff = Math.abs(userRate - targetValues.rate);
+    const rateErrorPct = rateDiff / targetValues.rate;
+    let rateScore = 50 * (1 - rateErrorPct * 2);
+    if (rateScore < 0) rateScore = 0;
+
+    const depthDiff = Math.abs(userDepth - targetValues.depth);
+    const depthErrorPct = depthDiff / targetValues.depth;
+    let depthScore = 50 * (1 - depthErrorPct * 2);
+    if (depthScore < 0) depthScore = 0;
+
+    if (userRate === targetValues.rate) rateScore = 50;
+    if (userDepth === targetValues.depth) depthScore = 50;
+
+    return Math.round(rateScore + depthScore);
 }
 
 function handleInsaneGuess() {
@@ -659,55 +690,92 @@ function handleInsaneGuess() {
 
     const userRate = parseFloat(rateInput.value);
     const userDepth = parseFloat(depthInput.value);
-
-    // Calculate Scores Proportional to Error
-    // Formula: 50 * (1 - (Error / Actual))
-    // Max 50 points each.
     
-    // 1. Rate Score
-    const rateDiff = Math.abs(userRate - targetValues.rate);
-    const rateErrorPct = rateDiff / targetValues.rate;
-    let rateScore = 50 * (1 - rateErrorPct * 2); // Multiplier makes scoring slightly stricter
-    if (rateScore < 0) rateScore = 0;
-
-    // 2. Depth Score
-    const depthDiff = Math.abs(userDepth - targetValues.depth);
-    const depthErrorPct = depthDiff / targetValues.depth;
-    let depthScore = 50 * (1 - depthErrorPct * 2);
-    if (depthScore < 0) depthScore = 0;
-
-    // Perfect match bonus? Only if inputs equal targets exactly
-    if (userRate === targetValues.rate) rateScore = 50;
-    if (userDepth === targetValues.depth) depthScore = 50;
-
-    const roundPoints = Math.round(rateScore + depthScore);
-    currentScore += roundPoints;
-
-    // Feedback UI
-    overlay.classList.remove('gameover', 'correct', 'wrong');
-    overlay.className = 'overlay visible';
-
-    if (roundPoints === 100) {
-        overlay.classList.add('correct');
-        feedbackTitle.textContent = "PERFECT!";
-        feedbackMessage.innerHTML = `You earned <strong>100 points</strong>!`;
-    } else if (roundPoints >= 70) {
-        overlay.classList.add('correct');
-        feedbackTitle.textContent = "Great Guess!";
-        feedbackMessage.innerHTML = `You earned <strong>${roundPoints} points</strong>.<br><br>Target: ${targetValues.rate}Hz / ${targetValues.depth} cents<br>You: ${userRate}Hz / ${userDepth} cents`;
+    // --- MULTIPLAYER LOGIC ---
+    if (isMultiplayer) {
+        if (activePlayer === 1) {
+            // P1 stores guess, clear screen, pass to P2
+            p1Guess = { rate: userRate, depth: userDepth };
+            
+            // Show interstitial screen
+            overlay.classList.remove('gameover', 'correct', 'wrong');
+            overlay.classList.add('visible', 'pass-device');
+            feedbackTitle.textContent = "Switch Players";
+            feedbackContent.innerHTML = "<p>Pass the device to <strong>Player 2</strong>.<br>Player 2 can listen again before guessing.</p>";
+            nextRoundBtn.textContent = "Player 2 Start";
+            
+            // Prepare P2 state
+            activePlayer = 2;
+            gameState = 'switch_turn';
+            return; 
+        } else {
+            // P2 Guesses - Calculate Scores for BOTH
+            const pts1 = calculateScore(p1Guess.rate, p1Guess.depth);
+            const pts2 = calculateScore(userRate, userDepth);
+            
+            p1Score += pts1;
+            p2Score += pts2;
+            
+            let resultMsg = "";
+            let winnerClass = "";
+            if (pts1 > pts2) {
+                resultMsg = "Player 1 Wins the Round!";
+                winnerClass = "p1-win";
+            } else if (pts2 > pts1) {
+                resultMsg = "Player 2 Wins the Round!";
+                winnerClass = "p2-win";
+            } else {
+                resultMsg = "It's a Tie!";
+            }
+            
+            overlay.classList.remove('pass-device', 'gameover', 'correct', 'wrong');
+            overlay.className = 'overlay visible';
+            
+            feedbackTitle.textContent = resultMsg;
+            feedbackContent.innerHTML = `
+                <div class="mp-results-grid">
+                    <div class="mp-card ${pts1 > pts2 ? 'winner' : ''}">
+                        <div style="color:var(--p1); font-weight:bold;">Player 1</div>
+                        <div>${p1Guess.rate}Hz / ${p1Guess.depth}c</div>
+                        <span class="mp-score-text">+${pts1} pts</span>
+                    </div>
+                    <div class="mp-card ${pts2 > pts1 ? 'winner' : ''}">
+                        <div style="color:var(--p2); font-weight:bold;">Player 2</div>
+                        <div>${userRate}Hz / ${userDepth}c</div>
+                        <span class="mp-score-text">+${pts2} pts</span>
+                    </div>
+                </div>
+                <p>Correct: <strong>${targetValues.rate}Hz / ${targetValues.depth}c</strong></p>
+            `;
+            
+            // Reset for next round
+            activePlayer = 1; 
+        }
     } else {
-        overlay.classList.add('wrong');
-        feedbackTitle.textContent = "Result";
-        feedbackMessage.innerHTML = `You earned <strong>${roundPoints} points</strong>.<br><br>Target: ${targetValues.rate}Hz / ${targetValues.depth} cents<br>You: ${userRate}Hz / ${userDepth} cents`;
+        // --- SINGLE PLAYER INSANE ---
+        const pts = calculateScore(userRate, userDepth);
+        currentScore += pts;
+
+        overlay.classList.remove('gameover', 'correct', 'wrong');
+        overlay.className = 'overlay visible';
+
+        if (pts >= 70) overlay.classList.add('correct');
+        else overlay.classList.add('wrong');
+
+        feedbackTitle.textContent = pts === 100 ? "PERFECT!" : "Result";
+        feedbackContent.innerHTML = `
+            <p>You earned <strong>${pts} points</strong>.</p>
+            <p>Target: ${targetValues.rate}Hz / ${targetValues.depth}c<br>You: ${userRate}Hz / ${userDepth}c</p>
+        `;
+        scoreDisplay.textContent = `Score: ${currentScore}`;
     }
 
-    scoreDisplay.textContent = `Score: ${currentScore}`;
     setupNextStep();
 }
 
 function setupNextStep() {
     if (currentRound >= MAX_ROUNDS) {
-        nextRoundBtn.textContent = "See Results";
+        nextRoundBtn.textContent = "See Final Results";
         gameState = 'results';
     } else {
         nextRoundBtn.textContent = "Next Round";
@@ -716,33 +784,72 @@ function setupNextStep() {
 }
 
 function endGame() {
-    overlay.classList.remove('correct', 'wrong');
+    overlay.classList.remove('correct', 'wrong', 'pass-device');
     overlay.classList.add('gameover');
     feedbackTitle.textContent = "Game Over";
     
-    let msg = `Final Score: ${currentScore}<br>`;
-    
-    const levelScores = highScores[currentDifficulty];
-    levelScores.push(currentScore);
-    levelScores.sort((a, b) => b - a);
-    highScores[currentDifficulty] = levelScores.slice(0, 3);
-    localStorage.setItem('vibratoHighScores', JSON.stringify(highScores));
-    
-    if (currentScore > 0 && highScores[currentDifficulty].includes(currentScore)) {
-        msg += `<br><span class="new-record">🏆 TOP SCORE (${currentDifficulty.toUpperCase()})! 🏆</span>`;
+    if (isMultiplayer) {
+        let winnerMsg = "";
+        let finalHtml = "";
+        
+        if (p1Score > p2Score) {
+            winnerMsg = "🏆 Player 1 is the Champion! 🏆";
+            finalHtml = `<p>Player 2 needs to practice more!</p>`;
+        } else if (p2Score > p1Score) {
+            winnerMsg = "🏆 Player 2 is the Champion! 🏆";
+            finalHtml = `<p>Player 1 has been dethroned!</p>`;
+        } else {
+            winnerMsg = "It's a Draw!";
+            finalHtml = `<p>Both ears are equally amazing!</p>`;
+        }
+        
+        feedbackTitle.textContent = winnerMsg;
+        feedbackContent.innerHTML = `
+            <h2 style="margin:0; font-size:3rem; color:var(--p1)">${p1Score}</h2>
+            <div style="font-size:0.8rem; margin-bottom:10px;">PLAYER 1</div>
+            <h2 style="margin:0; font-size:3rem; color:var(--p2)">${p2Score}</h2>
+            <div style="font-size:0.8rem; margin-bottom:20px;">PLAYER 2</div>
+            ${finalHtml}
+        `;
+    } else {
+        // Single Player End
+        let msg = `<p>Final Score: ${currentScore}</p>`;
+        const levelScores = highScores[currentDifficulty];
+        levelScores.push(currentScore);
+        levelScores.sort((a, b) => b - a);
+        highScores[currentDifficulty] = levelScores.slice(0, 3);
+        localStorage.setItem('vibratoHighScores', JSON.stringify(highScores));
+        
+        if (currentScore > 0 && highScores[currentDifficulty].includes(currentScore)) {
+            msg += `<span class="new-record">🏆 TOP SCORE (${currentDifficulty.toUpperCase()})! 🏆</span>`;
+        }
+        feedbackContent.innerHTML = msg;
+        updateHighScoresDisplay();
     }
-
-    feedbackMessage.innerHTML = msg;
+    
     nextRoundBtn.textContent = "Play Again";
-    updateHighScoresDisplay();
     gameState = 'gameover';
 }
 
 function restartGame() {
     currentRound = 1;
     currentScore = 0;
+    p1Score = 0;
+    p2Score = 0;
+    activePlayer = 1;
+    
+    // Ensure difficulty logic
+    if (isMultiplayer) {
+        difficultySelect.value = 'insane';
+        difficultySelect.disabled = true; 
+        difficultyLabel.textContent = "Mode: Multiplayer (Insane)";
+    } else {
+        difficultySelect.disabled = false;
+        currentDifficulty = difficultySelect.value;
+        difficultyLabel.textContent = `Difficulty: ${currentDifficulty.charAt(0).toUpperCase() + currentDifficulty.slice(1)}`;
+    }
     currentDifficulty = difficultySelect.value;
-    difficultyLabel.textContent = `Difficulty: ${currentDifficulty.charAt(0).toUpperCase() + currentDifficulty.slice(1)}`;
+    
     updateHighScoresDisplay();
     overlay.classList.remove('visible', 'gameover');
     startRound();
@@ -755,8 +862,18 @@ listenBtn.addEventListener('click', () => { playSound(); });
 metroToggle.addEventListener('click', () => {
     isMetronomeOn = !isMetronomeOn;
     metroToggle.classList.toggle('active', isMetronomeOn);
-    metroToggle.textContent = `Metronome: ${isMetronomeOn ? 'On (60 BPM)' : 'Off'}`;
+    metroToggle.textContent = `Metronome: ${isMetronomeOn ? 'On' : 'Off'}`;
     if (isPlaying) { stopSound(); setTimeout(playSound, 150); }
+});
+
+multiToggle.addEventListener('click', () => {
+    isMultiplayer = !isMultiplayer;
+    multiToggle.classList.toggle('active', isMultiplayer);
+    multiToggle.textContent = `Multiplayer: ${isMultiplayer ? 'On' : 'Off'}`;
+    
+    // Multiplayer forces Restart and Insane Mode
+    stopSound();
+    restartGame();
 });
 
 nextRoundBtn.addEventListener('click', () => {
@@ -764,6 +881,10 @@ nextRoundBtn.addEventListener('click', () => {
         endGame();
     } else if (gameState === 'gameover') {
         restartGame();
+    } else if (gameState === 'switch_turn') {
+        // Transition from Interstitial -> P2 UI
+        overlay.classList.remove('visible', 'pass-device');
+        renderUI(); // Re-render to show P2 label
     } else if (gameState === 'feedback') {
         if (currentRound < MAX_ROUNDS) {
             currentRound++;
