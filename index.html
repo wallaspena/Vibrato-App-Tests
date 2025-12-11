@@ -211,6 +211,7 @@
     .new-record { color: #d63384; animation: pulse 1s infinite; font-weight: bold; display: block; margin-top: 10px; }
 
 </style>
+<base target="_blank">
 </head>
 <body>
 
@@ -361,7 +362,9 @@ const NOTE_GAIN = 0.60; const CLICK_GAIN = 0.25; const FADE_TIME = 0.05; const S
 // --- GAME STATE ---
 const MAX_ROUNDS = 5;
 let currentRound = 1; let currentScore = 0; let currentDifficulty = 'medium';
-let targetValues = { rate: 0, depth: 0 }; let lastTargetValues = null; 
+let targetValues = { rate: 0, depth: 0 }; 
+// REMOVED: lastTargetValues (sessionTargets replaces it)
+let sessionTargets = []; // NEW: Track all targets in current session
 let currentOptions = []; let gameState = 'waiting'; 
 let isMultiplayer = false; let activePlayer = 1; let p1Score = 0; let p2Score = 0; let p1Guess = null; 
 
@@ -497,79 +500,147 @@ function getRandom(min, max, decimals = 0) {
     return parseFloat(val.toFixed(decimals));
 }
 
+// MODIFIED: Session-wide tracking with (0.5 && 10) logic
 function generateTarget() {
     let rate, depth;
     let attempts = 0;
+    const MAX_ATTEMPTS = 200;
     
-    // SMART RANDOMIZATION: Prevent duplicates or very close previous answers
     do {
         rate = getRandom(4, 7, 1);
         depth = getRandom(11, 44, 0);
         attempts++;
         
-        if (lastTargetValues) {
-            // Must be at least 1.0 Hz OR 10 cents different from last time
-            const rateDiff = Math.abs(rate - lastTargetValues.rate);
-            const depthDiff = Math.abs(depth - lastTargetValues.depth);
-            
-            if (rateDiff >= 1.0 || depthDiff >= 10) {
-                break; // Good new target
+        // Check against ALL previous targets in this session
+        if (sessionTargets.length > 0) {
+            let isFarEnough = true;
+            for (const prevTarget of sessionTargets) {
+                const rateDiff = Math.abs(rate - prevTarget.rate);
+                const depthDiff = Math.abs(depth - prevTarget.depth);
+                // NEW: 0.5 Hz AND 10 cents difference from EVERY previous target
+                if (rateDiff < 0.5 && depthDiff < 10) {
+                    isFarEnough = false;
+                    break;
+                }
             }
-            if (attempts > 50) break; // Emergency exit loop
+            if (isFarEnough) break;
         } else {
             break; // First round
         }
+        
+        if (attempts > MAX_ATTEMPTS) {
+            // Emergency fallback: avoid exact duplicates
+            const lastTarget = sessionTargets[sessionTargets.length - 1];
+            if (Math.abs(rate - lastTarget.rate) >= 0.2 || Math.abs(depth - lastTarget.depth) >= 2) {
+                break;
+            }
+        }
     } while (true);
 
-    lastTargetValues = { rate, depth };
-    return { rate, depth };
+    const target = { rate, depth };
+    sessionTargets.push(target); // Add to session history
+    return target;
 }
 
 function generateOptions(target, difficulty) {
     if (difficulty === 'insane') return [];
     
     let numOptions, rateDev, depthDev;
-    
-    // NEW DIFFICULTY SETTINGS
     switch(difficulty) {
         case 'easy':
-            numOptions = 2; rateDev = 3.0; depthDev = 30; // 3.0Hz / 30 cents
+            numOptions = 2; rateDev = 3.0; depthDev = 30;
             break;
         case 'medium':
-            numOptions = 3; rateDev = 2.0; depthDev = 20; // 2.0Hz / 20 cents
+            numOptions = 3; rateDev = 2.0; depthDev = 20;
             break;
         case 'hard':
-            numOptions = 5; rateDev = 1.0; depthDev = 10; // 1.0Hz / 10 cents
+            numOptions = 5; rateDev = 1.0; depthDev = 10;
             break;
         default:
             numOptions = 3; rateDev = 2.0; depthDev = 20;
     }
 
-    let opts = [target];
+    const opts = [target];
+    const usedRates = new Set([target.rate.toFixed(1)]);
+    const usedDepths = new Set([target.depth.toString()]);
+    const usedPairs = new Set([`${target.rate.toFixed(1)}-${target.depth}`]);
 
+    const directionPool = [];
     for (let i = 0; i < numOptions - 1; i++) {
-        let newOpt; let valid = false; let attempts = 0;
-        while (!valid && attempts < 20) {
+        const isFar = Math.random() > 0.3;
+        const magnitude = isFar ? rateDev : (rateDev * 0.6);
+        directionPool.push(Math.random() > 0.5 ? magnitude : -magnitude);
+    }
+    directionPool.sort(() => Math.random() - 0.5);
+    
+    for (let i = 0; i < numOptions - 1; i++) {
+        let newOpt; 
+        let valid = false; 
+        let attempts = 0;
+        
+        while (!valid && attempts < 50) {
             attempts++;
-            const rDir = Math.random() > 0.5 ? 1 : -1;
-            const dDir = Math.random() > 0.5 ? 1 : -1;
-            const rJitter = (Math.random() * 0.4) - 0.2; 
-            const dJitter = Math.floor(Math.random() * 4) - 2;
-
-            let r = parseFloat((target.rate + (rateDev + rJitter) * rDir).toFixed(1));
-            let d = Math.round(target.depth + (depthDev + dJitter) * dDir);
-
-            if (r < 4) r = 4; if (r > 7) r = 7;
-            if (d < 11) d = 11; if (d > 44) d = 44;
-
-            newOpt = { rate: r, depth: d };
-            const exists = opts.some(o => o.rate === newOpt.rate && o.depth === newOpt.depth);
-            const tooClose = Math.abs(newOpt.rate - target.rate) < 0.1 && Math.abs(newOpt.depth - target.depth) < 2;
             
-            if (!exists && !tooClose) valid = true;
+            const direction = directionPool[i];
+            const rJitter = (Math.random() * 0.6) - 0.3;
+            const dJitter = Math.floor(Math.random() * 6) - 3;
+
+            let r = target.rate + (Math.abs(direction) + rJitter) * Math.sign(direction);
+            let d = target.depth + (depthDev + dJitter) * Math.sign(direction);
+            
+            r = Math.max(4, Math.min(7, r));
+            d = Math.max(11, Math.min(44, d));
+            r = parseFloat(r.toFixed(1));
+
+            const rateKey = r.toFixed(1);
+            const depthKey = d.toString();
+            const pairKey = `${rateKey}-${depthKey}`;
+            
+            const isRateUnique = !usedRates.has(rateKey);
+            const isDepthUnique = !usedDepths.has(depthKey);
+            const isPairUnique = !usedPairs.has(pairKey);
+            const tooClose = Math.abs(r - target.rate) < 0.1 && Math.abs(d - target.depth) < 2;
+            
+            if (isRateUnique && isDepthUnique && isPairUnique && !tooClose) {
+                valid = true;
+                usedRates.add(rateKey);
+                usedDepths.add(depthKey);
+                usedPairs.add(pairKey);
+                newOpt = { rate: r, depth: d };
+            }
         }
+        
+        if (!valid) {
+            let fallbackAttempts = 0;
+            let r, d;
+            do {
+                const allRates = Array.from({length: 31}, (_, i) => (4 + i * 0.1).toFixed(1));
+                const allDepths = Array.from({length: 34}, (_, i) => (11 + i).toString());
+                const availableRates = allRates.filter(rate => !usedRates.has(rate));
+                const availableDepths = allDepths.filter(depth => !usedDepths.has(depth));
+                
+                if (availableRates.length && availableDepths.length) {
+                    r = parseFloat(availableRates[Math.floor(Math.random() * availableRates.length)]);
+                    d = parseInt(availableDepths[Math.floor(Math.random() * availableDepths.length)]);
+                } else {
+                    r = target.rate + (Math.random() > 0.5 ? 0.2 : -0.2);
+                    d = target.depth + (Math.random() > 0.5 ? 5 : -5);
+                    r = Math.max(4, Math.min(7, r));
+                    d = Math.max(11, Math.min(44, d));
+                    r = parseFloat(r.toFixed(1));
+                }
+                fallbackAttempts++;
+            } while (usedPairs.has(`${r.toFixed(1)}-${d}`) && fallbackAttempts < 20);
+            
+            newOpt = { rate: r, depth: d };
+            usedRates.add(r.toFixed(1));
+            usedDepths.add(d.toString());
+            usedPairs.add(`${r.toFixed(1)}-${d}`);
+        }
+        
         opts.push(newOpt);
     }
+    
     return opts.sort(() => Math.random() - 0.5);
 }
 
@@ -580,7 +651,7 @@ function startRound() {
     gameState = 'playing';
     
     if (!isMultiplayer || (isMultiplayer && activePlayer === 1)) {
-        targetValues = generateTarget();
+        targetValues = generateTarget(); // This now also adds to sessionTargets
         currentOptions = generateOptions(targetValues, currentDifficulty);
     }
 
@@ -776,7 +847,8 @@ function endGame() {
 }
 
 function restartGame() {
-    currentRound = 1; currentScore = 0; p1Score = 0; p2Score = 0; activePlayer = 1; lastTargetValues = null;
+    currentRound = 1; currentScore = 0; p1Score = 0; p2Score = 0; activePlayer = 1;
+    sessionTargets = []; // NEW: Clear session history
     if (isMultiplayer) {
         difficultySelect.value = 'insane'; difficultySelect.disabled = true; 
         difficultyLabel.textContent = "Mode: Multiplayer (Insane)";
