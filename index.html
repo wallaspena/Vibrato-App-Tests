@@ -211,7 +211,6 @@
     .new-record { color: #d63384; animation: pulse 1s infinite; font-weight: bold; display: block; margin-top: 10px; }
 
 </style>
-<base target="_blank">
 </head>
 <body>
 
@@ -345,7 +344,14 @@ class VibratoProcessor extends AudioWorkletProcessor {
       this.carrierPhase += averageFreq * inverseSampleRate;
       this.previousInstantaneousFreq = targetInstantaneousFreq;
       if (this.carrierPhase >= 1.0) this.carrierPhase -= 1.0;
-      outputChannel[i] = Math.sin(this.carrierPhase * twoPi);
+      
+      // MODIFIED: Softer, vocal-like harmonic series
+      let val = 0;
+      val += Math.sin(this.carrierPhase * twoPi);               // Fundamental
+      val += 0.25 * Math.sin(2 * this.carrierPhase * twoPi);    // 2nd harmonic (gentle)
+      val += 0.1 * Math.sin(3 * this.carrierPhase * twoPi);     // 3rd harmonic (subtle)
+      outputChannel[i] = val * 0.74; // Normalize
+      
       this.lfoPhase += currentRate * inverseSampleRate;
       if (this.lfoPhase >= 1.0) this.lfoPhase -= 1.0;
     }
@@ -362,9 +368,9 @@ const NOTE_GAIN = 0.60; const CLICK_GAIN = 0.25; const FADE_TIME = 0.05; const S
 // --- GAME STATE ---
 const MAX_ROUNDS = 5;
 let currentRound = 1; let currentScore = 0; let currentDifficulty = 'medium';
-let targetValues = { rate: 0, depth: 0 }; 
-// REMOVED: lastTargetValues (sessionTargets replaces it)
-let sessionTargets = []; // NEW: Track all targets in current session
+let targetValues = { rate: 0, depth: 0 };
+let targetHistory = []; // Array to store last N targets
+const HISTORY_LENGTH = 3; // Remember last 3 rounds
 let currentOptions = []; let gameState = 'waiting'; 
 let isMultiplayer = false; let activePlayer = 1; let p1Score = 0; let p2Score = 0; let p1Guess = null; 
 
@@ -500,46 +506,32 @@ function getRandom(min, max, decimals = 0) {
     return parseFloat(val.toFixed(decimals));
 }
 
-// MODIFIED: Session-wide tracking with (0.5 && 10) logic
+// MODIFIED: Extended history buffer to prevent oscillation patterns
 function generateTarget() {
     let rate, depth;
-    let attempts = 0;
-    const MAX_ATTEMPTS = 200;
+    const MAX_ATTEMPTS = 150;
     
-    do {
+    for (let attempts = 0; attempts < MAX_ATTEMPTS; attempts++) {
         rate = getRandom(4, 7, 1);
         depth = getRandom(11, 44, 0);
-        attempts++;
         
-        // Check against ALL previous targets in this session
-        if (sessionTargets.length > 0) {
-            let isFarEnough = true;
-            for (const prevTarget of sessionTargets) {
-                const rateDiff = Math.abs(rate - prevTarget.rate);
-                const depthDiff = Math.abs(depth - prevTarget.depth);
-                // NEW: 0.5 Hz AND 10 cents difference from EVERY previous target
-                if (rateDiff < 0.5 && depthDiff < 10) {
-                    isFarEnough = false;
-                    break;
-                }
-            }
-            if (isFarEnough) break;
-        } else {
-            break; // First round
-        }
+        // Check against ALL recent targets in history
+        const isTooSimilar = targetHistory.some(historyTarget => {
+            const rateDiff = Math.abs(rate - historyTarget.rate);
+            const depthDiff = Math.abs(depth - historyTarget.depth);
+            return rateDiff < 1.0 && depthDiff < 10; // Too close to ANY recent target
+        });
         
-        if (attempts > MAX_ATTEMPTS) {
-            // Emergency fallback: avoid exact duplicates
-            const lastTarget = sessionTargets[sessionTargets.length - 1];
-            if (Math.abs(rate - lastTarget.rate) >= 0.2 || Math.abs(depth - lastTarget.depth) >= 2) {
-                break;
-            }
-        }
-    } while (true);
-
-    const target = { rate, depth };
-    sessionTargets.push(target); // Add to session history
-    return target;
+        if (!isTooSimilar) break; // Found a good target
+    }
+    
+    // Update history (keep only last N entries)
+    targetHistory.push({ rate, depth });
+    if (targetHistory.length > HISTORY_LENGTH) {
+        targetHistory.shift(); // Remove oldest entry
+    }
+    
+    return { rate, depth };
 }
 
 function generateOptions(target, difficulty) {
@@ -650,8 +642,9 @@ function startRound() {
     
     gameState = 'playing';
     
+    // Multiplayer: Only generate new target on Player 1's turn (both hear same target)
     if (!isMultiplayer || (isMultiplayer && activePlayer === 1)) {
-        targetValues = generateTarget(); // This now also adds to sessionTargets
+        targetValues = generateTarget();
         currentOptions = generateOptions(targetValues, currentDifficulty);
     }
 
@@ -731,18 +724,20 @@ function handleStandardGuess(selectedOption) {
     setupNextStep();
 }
 
+// MODIFIED: Linear scoring for both rate and depth
 function calculateScore(userRate, userDepth) {
+    // Rate: Linear penalty (50% error = 0 points)
     const rateDiff = Math.abs(userRate - targetValues.rate);
     const rateErrorPct = rateDiff / targetValues.rate;
     let rateScore = 50 * (1 - rateErrorPct * 2);
     if (rateScore < 0) rateScore = 0;
+    if (userRate === targetValues.rate) rateScore = 50;
 
+    // Depth: Linear penalty (50% error = 0 points)
     const depthDiff = Math.abs(userDepth - targetValues.depth);
     const depthErrorPct = depthDiff / targetValues.depth;
     let depthScore = 50 * (1 - depthErrorPct * 2);
     if (depthScore < 0) depthScore = 0;
-
-    if (userRate === targetValues.rate) rateScore = 50;
     if (userDepth === targetValues.depth) depthScore = 50;
 
     return Math.round(rateScore + depthScore);
@@ -848,7 +843,7 @@ function endGame() {
 
 function restartGame() {
     currentRound = 1; currentScore = 0; p1Score = 0; p2Score = 0; activePlayer = 1;
-    sessionTargets = []; // NEW: Clear session history
+    targetHistory = []; // Clear history buffer on restart
     if (isMultiplayer) {
         difficultySelect.value = 'insane'; difficultySelect.disabled = true; 
         difficultyLabel.textContent = "Mode: Multiplayer (Insane)";
