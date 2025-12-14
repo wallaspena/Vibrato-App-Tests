@@ -2,390 +2,358 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Vibrato Master</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibrato Ear Trainer</title>
 <style>
     :root {
-        --primary: #58cc02; /* Duo Green */
-        --primary-dark: #46a302;
-        --secondary: #1cb0f6; /* Duo Blue */
-        --secondary-dark: #1899d6;
-        --danger: #ff4b4b;
-        --danger-dark: #d33131;
-        --warning: #ffc800;
-        --warning-dark: #e5b400;
-        --gray: #e5e5e5;
-        --gray-dark: #cecece;
-        --text: #3c3c3c;
-        --text-light: #777;
-        --bg: #ffffff;
-        --surface: #ffffff;
-        --card-border: #e5e5e5;
-        
-        --radius: 16px;
-        --btn-height: 50px;
-        --header-height: 60px;
-        --safe-top: env(safe-area-inset-top, 20px);
-        --safe-bottom: env(safe-area-inset-bottom, 20px);
+        --bg: #f4f4f4;
+        --card-bg: #ffffff;
+        --text: #333333;
+        --accent: #000000;
+        --success: #28a745;
+        --error: #dc3545;
+        --p1: #007bff;
+        --p2: #d63384;
+        --radius: 12px;
     }
 
-    @media (prefers-color-scheme: dark) {
-        :root {
-            --bg: #131f24;
-            --surface: #202f36;
-            --text: #ffffff;
-            --text-light: #9faab0;
-            --card-border: #37464f;
-            --gray: #37464f;
-            --gray-dark: #28373f;
-        }
-    }
-
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
-    
     body {
-        font-family: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         background-color: var(--bg);
         color: var(--text);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
         margin: 0;
-        padding: 0;
-        height: 100vh;
-        overflow: hidden; /* Prevent pull-to-refresh */
-        display: flex;
-        flex-direction: column;
-    }
-
-    /* --- CANVAS --- */
-    #effects-canvas {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        pointer-events: none; z-index: 1000;
-    }
-
-    /* --- HEADER --- */
-    .app-header {
-        height: calc(var(--header-height) + var(--safe-top));
-        padding-top: var(--safe-top);
-        background: var(--bg);
-        border-bottom: 2px solid var(--card-border);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding-left: 16px;
-        padding-right: 16px;
-        z-index: 10;
-        flex-shrink: 0;
-    }
-
-    .stat-badge {
-        display: flex; align-items: center; gap: 6px;
-        font-weight: 800; font-size: 0.95rem;
-    }
-    .icon-heart { color: var(--danger); fill: currentColor; }
-    .icon-gem { color: var(--secondary); fill: currentColor; }
-    .icon-fire { color: var(--warning); fill: currentColor; }
-
-    /* --- VIEWS --- */
-    .view-container {
-        flex: 1;
-        overflow-y: auto;
         padding: 20px;
-        padding-bottom: calc(var(--safe-bottom) + 80px); /* Space for bottom sheet */
-        display: none;
-        flex-direction: column;
-        align-items: center;
+        box-sizing: border-box;
+        overflow-x: hidden;
     }
-    .view-container.active { display: flex; }
 
-    /* --- HOME / PATH --- */
-    .level-path {
-        display: flex; flex-direction: column; gap: 20px; align-items: center; width: 100%; max-width: 400px;
+    /* Confetti Canvas */
+    #effects-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 999;
+    }
+
+    .game-container {
+        background: var(--card-bg);
+        padding: 30px;
+        border-radius: var(--radius);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        width: 100%;
+        max-width: 400px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        transition: border-color 0.2s;
+        border: 2px solid transparent;
+    }
+
+    /* Wrong Answer Shake Animation */
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+        20%, 40%, 60%, 80% { transform: translateX(5px); }
     }
     
-    .level-node {
-        width: 100%;
-        background: var(--surface);
-        border: 2px solid var(--card-border);
-        border-radius: var(--radius);
-        padding: 15px;
+    .shake-effect {
+        animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        border-color: var(--error) !important;
+    }
+
+    h1 { margin: 0 0 10px 0; font-size: 1.5rem; letter-spacing: -0.5px; }
+    h2 { margin: 0 0 20px 0; font-size: 1rem; color: #666; font-weight: normal; }
+
+    .stats-bar {
         display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+        font-weight: bold;
+        color: #888;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+    }
+    
+    .stats-bar.multi { color: var(--text); }
+
+    .play-section {
+        display: flex;
+        flex-direction: column;
         align-items: center;
         gap: 15px;
-        cursor: pointer;
-        transition: transform 0.1s;
-        position: relative;
-    }
-    .level-node:active { transform: scale(0.98); background-color: var(--gray); }
-    .level-node.locked { opacity: 0.6; filter: grayscale(1); pointer-events: none; }
-    
-    .level-icon {
-        width: 50px; height: 50px;
-        background: var(--primary);
-        border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        color: white;
-        box-shadow: 0 4px 0 var(--primary-dark);
-        font-size: 1.2rem;
-    }
-    .level-node.completed .level-icon { background: var(--warning); box-shadow: 0 4px 0 var(--warning-dark); }
-    
-    .level-info h3 { margin: 0; font-size: 1.1rem; }
-    .level-info p { margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-light); }
-
-    /* --- GAME VIEW --- */
-    .game-header { width: 100%; max-width: 500px; margin-bottom: 20px; }
-    .progress-bar-bg {
-        width: 100%; height: 16px; background: var(--card-border); border-radius: 8px; overflow: hidden;
-    }
-    .progress-fill {
-        height: 100%; background: var(--primary); width: 0%;
-        transition: width 0.3s cubic-bezier(0.4, 1, 0.7, 0.93);
+        margin-bottom: 25px;
     }
 
-    .listen-circle {
-        width: 120px; height: 120px;
+    .listen-btn {
+        width: 80px;
+        height: 80px;
         border-radius: 50%;
-        background: var(--secondary);
-        box-shadow: 0 6px 0 var(--secondary-dark);
+        background: var(--accent);
         border: none;
         color: white;
-        margin: 20px 0;
+        font-size: 1.5rem;
         cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-        transition: transform 0.1s, margin-top 0.1s;
+        transition: transform 0.1s, background-color 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     }
-    .listen-circle:active { transform: translateY(6px); box-shadow: none; margin-bottom: 26px; }
-    .listen-circle.playing { background: var(--text); box-shadow: 0 6px 0 black; }
-    .listen-circle svg { width: 50px; height: 50px; fill: white; }
+    
+    .listen-btn:active { transform: scale(0.95); }
+    .listen-btn.playing { background-color: #444; }
+
+    .toggle-row { display: flex; gap: 10px; justify-content: center; }
+
+    .metro-toggle, .multi-toggle {
+        background: none; border: 1px solid #ddd; padding: 6px 12px;
+        border-radius: 20px; font-size: 0.8rem; cursor: pointer; color: #777; transition: all 0.2s;
+    }
+
+    .metro-toggle.active, .multi-toggle.active {
+        background-color: #e0e0e0; color: #000; border-color: #999; font-weight: bold;
+    }
+    
+    .multi-toggle.active {
+        background-color: var(--text); color: white; border-color: var(--text);
+    }
+
+    .icon { width: 30px; height: 30px; fill: white; }
 
     .options-grid {
-        display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-        width: 100%; max-width: 500px;
+        display: grid;
+        gap: 10px;
+        margin-bottom: 20px;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
+    .insane-inputs {
+        display: flex; flex-direction: column; gap: 15px; text-align: left;
+    }
+    .insane-inputs label { font-size: 0.9rem; font-weight: bold; color: #555; }
+    .insane-inputs input {
+        width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px;
+        font-size: 1rem; box-sizing: border-box; margin-top: 5px;
     }
     
-    .game-btn {
-        background: var(--surface);
-        border: 2px solid var(--card-border);
-        border-bottom-width: 4px;
-        border-radius: var(--radius);
-        padding: 15px;
-        font-size: 1rem;
-        font-weight: 700;
-        color: var(--text);
-        cursor: pointer;
-        transition: all 0.1s;
+    .turn-indicator {
+        font-weight: bold; margin-bottom: 10px; display: block;
+        text-transform: uppercase; font-size: 0.85rem; letter-spacing: 1px;
     }
-    .game-btn:active { border-bottom-width: 2px; transform: translateY(2px); }
-    .game-btn.selected { border-color: var(--secondary); background: #eefaff; color: var(--secondary); }
-    .game-btn.correct { border-color: var(--primary); background: #dfffd6; color: var(--primary); }
-    .game-btn.wrong { border-color: var(--danger); background: #ffeaea; color: var(--danger); }
+    .p1-turn { color: var(--p1); }
+    .p2-turn { color: var(--p2); }
 
-    /* --- BOTTOM SHEET (FEEDBACK) --- */
-    .bottom-sheet {
-        position: fixed; bottom: 0; left: 0; width: 100%;
-        background: var(--surface);
-        padding: 20px;
-        padding-bottom: max(20px, var(--safe-bottom));
-        border-top: 2px solid var(--card-border);
-        transform: translateY(110%);
-        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        z-index: 100;
-        display: flex; flex-direction: column; gap: 10px;
+    .option-btn {
+        background: white; border: 2px solid #eee; padding: 15px;
+        border-radius: 8px; font-size: 1rem; cursor: pointer; transition: all 0.2s; font-weight: 500;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
-    .bottom-sheet.visible { transform: translateY(0); }
-    .bottom-sheet.correct { background: #d7ffb8; border-color: #b8f28b; color: #58a700; }
-    .bottom-sheet.wrong { background: #ffdfe0; border-color: #ffc1c1; color: #ea2b2b; }
+    .option-btn:hover { border-color: #ccc; }
+    .option-btn:active { background-color: #f9f9f9; }
+    .option-btn span { font-size: 0.85rem; color: #666; margin-top: 4px; }
 
-    .sheet-title { font-weight: 900; font-size: 1.5rem; margin: 0; display: flex; align-items: center; gap: 10px; }
-    .sheet-msg { font-size: 1rem; margin-bottom: 10px; }
+    .controls { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
 
-    .action-btn {
-        width: 100%;
-        padding: 14px;
-        border-radius: var(--radius);
-        border: none;
-        font-size: 1.1rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        cursor: pointer;
-        color: white;
-        background: var(--primary);
-        box-shadow: 0 4px 0 var(--primary-dark);
+    select, .action-btn {
+        padding: 10px 15px; border-radius: 6px; border: 1px solid #ccc;
+        background: white; font-size: 0.9rem; cursor: pointer;
     }
-    .action-btn:active { transform: translateY(4px); box-shadow: none; }
-    .action-btn.secondary { background: var(--card-border); color: var(--text); box-shadow: 0 4px 0 var(--gray-dark); }
-    .sheet-btn.correct { background: var(--primary); box-shadow: 0 4px 0 var(--primary-dark); }
-    .sheet-btn.wrong { background: var(--danger); box-shadow: 0 4px 0 var(--danger-dark); }
+    .action-btn { background: var(--accent); color: white; border: none; }
 
-    /* --- SHOP VIEW --- */
-    .shop-item {
-        width: 100%; max-width: 400px;
-        background: var(--surface); border: 2px solid var(--card-border);
-        border-radius: var(--radius); padding: 15px;
-        display: flex; justify-content: space-between; align-items: center;
-        margin-bottom: 15px;
+    /* Modal Overlay */
+    .overlay {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(255,255,255,0.98);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        opacity: 0; pointer-events: none; transition: opacity 0.3s; padding: 20px; z-index: 10;
     }
-    .price-tag { color: var(--secondary); font-weight: 800; display: flex; align-items: center; gap: 4px; }
+    .overlay.visible { opacity: 1; pointer-events: all; }
+    .overlay h3 { font-size: 2rem; margin: 0 0 10px 0; }
+    .overlay p { font-size: 1.1rem; color: #555; margin-bottom: 20px; }
+    
+    .overlay .btn-next {
+        background: var(--accent); color: white; border: none;
+        padding: 12px 30px; font-size: 1rem; border-radius: 25px; cursor: pointer;
+    }
 
-    /* --- MODAL (Game Over) --- */
-    .modal-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.5); z-index: 200;
-        display: flex; align-items: center; justify-content: center;
-        opacity: 0; pointer-events: none; transition: opacity 0.2s;
-    }
-    .modal-overlay.visible { opacity: 1; pointer-events: all; }
-    .modal-card {
-        background: var(--surface); width: 90%; max-width: 350px;
-        padding: 24px; border-radius: var(--radius);
-        text-align: center;
-        transform: scale(0.8); transition: transform 0.2s;
-    }
-    .modal-overlay.visible .modal-card { transform: scale(1); }
+    .overlay.pass-device { background: var(--text); }
+    .overlay.pass-device h3 { color: white; }
+    .overlay.pass-device p { color: #ccc; }
+    .overlay.pass-device .btn-next { background: white; color: black; }
 
-    /* Animations */
-    @keyframes pop { 50% { transform: scale(1.2); } }
-    .pop-anim { animation: pop 0.3s; }
+    .mp-results-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; margin-bottom: 20px;
+    }
+    .mp-card {
+        background: #f9f9f9; padding: 10px; border-radius: 8px; font-size: 0.9rem;
+    }
+    .mp-card.winner { border: 2px solid #ffd700; background: #fffbe6; }
+    .mp-score-text { font-size: 1.2rem; font-weight: bold; display: block; margin-top: 5px; }
+
+    .high-scores {
+        margin-top: 30px; font-size: 0.85rem; color: #777; text-align: left; width: 100%; max-width: 400px;
+    }
+    .high-scores-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .reset-btn { font-size: 0.7rem; padding: 2px 8px; background: transparent; border: 1px solid #ccc; color: #999; border-radius: 4px; cursor: pointer; }
+    .reset-btn:hover { color: var(--error); border-color: var(--error); }
+    .high-scores ol { padding-left: 20px; }
+
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    .new-record { color: #d63384; animation: pulse 1s infinite; font-weight: bold; display: block; margin-top: 10px; }
+
 </style>
 </head>
 <body>
 
-<!-- Canvas for Effects -->
+<!-- Effects Canvas -->
 <canvas id="effects-canvas"></canvas>
 
-<!-- Top Stats Bar -->
-<div class="app-header">
-    <div class="stat-badge" onclick="goHome()">
-        <span style="font-size:1.2rem">🎻</span>
-    </div>
-    <div class="stat-badge" id="streak-display">
-        <svg class="icon-fire" width="20" height="20" viewBox="0 0 24 24"><path d="M12 23a7.5 7.5 0 0 1-5.138-12.963C8.204 8.774 11.5 6.5 11 1.5c6 4 9 8 3 14 1 0 2.5 0 5-2.47.27.773.5 1.604.5 2.47A7.5 7.5 0 0 1 12 23z"/></svg>
-        <span id="streak-val">0</span>
-    </div>
-    <div class="stat-badge" id="gem-display">
-        <svg class="icon-gem" width="20" height="20" viewBox="0 0 24 24"><path d="M12 2l-9.58 6.96 3.02 13.04h13.12l3.02-13.04z"/></svg>
-        <span id="gem-val">0</span>
-    </div>
-    <div class="stat-badge" id="heart-display" onclick="openShop()">
-        <svg class="icon-heart" width="20" height="20" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-        <span id="heart-val">5</span>
-    </div>
-</div>
+<div class="game-container" id="game-card">
+    <h1>Vibrato Quiz</h1>
+    <h2 id="difficulty-label">Difficulty: Medium</h2>
 
-<!-- View: HOME / PATH -->
-<div id="home-view" class="view-container active">
-    <div class="level-path" id="level-list">
-        <!-- Generated via JS -->
+    <div class="stats-bar" id="stats-bar">
+        <span id="round-display">Round: 1/5</span>
+        <span id="score-display">Score: 0</span>
     </div>
-    <div style="margin-top: 30px; text-align: center; color: var(--text-light); font-size: 0.8rem;">
-        Complete levels to earn XP and Gems.<br>Don't lose your streak!
-    </div>
-</div>
 
-<!-- View: GAME -->
-<div id="game-view" class="view-container">
-    <div class="game-header">
-        <div class="progress-bar-bg">
-            <div class="progress-fill" id="game-progress"></div>
+    <div class="play-section">
+        <button id="listen-btn" class="listen-btn" aria-label="Play Sound">
+            <svg id="icon-play" class="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="icon-stop" class="icon" viewBox="0 0 24 24" style="display:none"><path d="M6 6h12v12H6z"/></svg>
+        </button>
+        
+        <div class="toggle-row">
+            <button id="metro-toggle" class="metro-toggle">Metronome: Off</button>
+            <button id="multi-toggle" class="multi-toggle">1P / 2P</button>
         </div>
+        
+        <div style="font-size: 0.8rem; color: #999; margin-top: 5px;">(A4 Note)</div>
     </div>
-
-    <div style="text-align:center; font-weight:800; font-size:1.2rem; margin-bottom:10px;">
-        Identify the Vibrato
-    </div>
-
-    <button id="listen-btn" class="listen-circle">
-        <svg id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-        <svg id="icon-stop" viewBox="0 0 24 24" style="display:none"><path d="M6 6h12v12H6z"/></svg>
-    </button>
-    
-    <div style="font-size:0.9rem; color:var(--text-light); margin-bottom:20px;">Reference: A4 (442Hz)</div>
 
     <div id="options-container" class="options-grid"></div>
-</div>
 
-<!-- View: SHOP -->
-<div id="shop-view" class="view-container">
-    <h2 style="align-self: flex-start;">Shop</h2>
-    
-    <div class="shop-item">
-        <div>
-            <div style="font-weight:bold; font-size:1.1rem">Refill Hearts</div>
-            <div style="font-size:0.9rem; color:var(--text-light)">Restore to full health</div>
-        </div>
-        <button class="action-btn" style="width: auto; padding: 10px 20px; background: var(--secondary); box-shadow: 0 4px 0 var(--secondary-dark);" onclick="buyHearts()">
-            <div class="price-tag"><span style="color:white">350</span> 💎</div>
-        </button>
+    <div class="controls">
+        <select id="difficulty-select">
+            <option value="easy">Easy (2 Options)</option>
+            <option value="medium" selected>Medium (3 Options)</option>
+            <option value="hard">Hard (5 Options)</option>
+            <option value="insane">Insane (Typing)</option>
+        </select>
+        <button id="restart-btn" class="action-btn">Restart Game</button>
     </div>
 
-    <div class="shop-item">
-        <div>
-            <div style="font-weight:bold; font-size:1.1rem">Streak Freeze</div>
-            <div style="font-size:0.9rem; color:var(--text-light)">Protect your streak for one day</div>
-        </div>
-        <button class="action-btn secondary" style="width: auto; padding: 10px 20px;" disabled>
-            <div class="price-tag">Equipped</div>
-        </button>
+    <!-- Feedback Overlay -->
+    <div id="feedback-overlay" class="overlay">
+        <h3 id="feedback-title">Correct!</h3>
+        <div id="feedback-content"></div>
+        <button id="next-round-btn" class="btn-next">Next Round</button>
     </div>
-    
-    <button class="action-btn secondary" style="margin-top:20px;" onclick="goHome()">Back to Home</button>
 </div>
 
-<!-- Bottom Sheet (Feedback) -->
-<div id="feedback-sheet" class="bottom-sheet">
-    <div class="sheet-title" id="sheet-title"></div>
-    <div class="sheet-msg" id="sheet-msg"></div>
-    <button id="sheet-btn" class="action-btn sheet-btn">Continue</button>
-</div>
-
-<!-- Modal (Game Over / Level Complete) -->
-<div id="modal-overlay" class="modal-overlay">
-    <div class="modal-card">
-        <h2 id="modal-title">Out of Hearts!</h2>
-        <p id="modal-msg" style="color: var(--text-light); margin-bottom: 20px;">You made too many mistakes.</p>
-        <button id="modal-btn" class="action-btn" onclick="closeModal()">Go to Shop</button>
+<div class="high-scores" id="hs-container">
+    <div class="high-scores-header">
+        <strong id="highscore-title">Top 3 High Scores:</strong>
+        <button id="reset-score-btn" class="reset-btn">Reset</button>
     </div>
+    <ol id="highscore-list"></ol>
 </div>
 
 <script>
-/* =========================================
-   AUDIO ENGINE (AudioWorklet)
-   ========================================= */
+// --- VISUAL EFFECTS ENGINE ---
+const canvas = document.getElementById('effects-canvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+let animationFrame;
+
+function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function fireConfetti() {
+    for (let i = 0; i < 100; i++) {
+        particles.push({
+            x: window.innerWidth / 2, y: window.innerHeight / 2,
+            vx: (Math.random() - 0.5) * 20, vy: (Math.random() - 0.5) * 20, 
+            size: Math.random() * 8 + 4, color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+            gravity: 0.1, rotation: Math.random() * 360, rotationSpeed: (Math.random() - 0.5) * 10
+        });
+    }
+    if (!animationFrame) loopEffects();
+}
+
+function triggerShake() {
+    const card = document.getElementById('game-card');
+    card.classList.remove('shake-effect');
+    void card.offsetWidth; card.classList.add('shake-effect');
+}
+
+function loopEffects() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.vy += p.gravity; p.x += p.vx; p.y += p.vy; p.rotation += p.rotationSpeed;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rotation * Math.PI / 180);
+        ctx.fillStyle = p.color; ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size); ctx.restore();
+        if (p.y > window.innerHeight + 50 || p.y < -50 || p.x > window.innerWidth + 50 || p.x < -50) particles.splice(i, 1);
+    }
+    if (particles.length > 0) animationFrame = requestAnimationFrame(loopEffects); else animationFrame = null;
+}
+
+// --- AUDIO ENGINE ---
 const workletCode = `
 class VibratoProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
-      { name: 'baseFrequency', defaultValue: 442 },
-      { name: 'depth', defaultValue: 20 },
-      { name: 'rate', defaultValue: 5.0 }
+      { name: 'baseFrequency', defaultValue: 442, minValue: 20, maxValue: 20000 },
+      { name: 'depth', defaultValue: 50, minValue: 0, maxValue: 200 },
+      { name: 'rate', defaultValue: 5.0, minValue: 0.1, maxValue: 20 }
     ];
   }
   constructor() {
-    super(); this.phase = 0; this.lfoPhase = 0;
+    super(); this.carrierPhase = 0; this.lfoPhase = 0; this.previousInstantaneousFreq = 0;
+    this.startTime = -1;
+    this.port.onmessage = (e) => { if (e.data.startTime !== undefined) this.startTime = e.data.startTime; };
   }
   process(inputs, outputs, parameters) {
-    const output = outputs[0][0];
-    const baseFreq = parameters.baseFrequency[0];
-    const depth = parameters.depth[0];
-    const rate = parameters.rate[0];
-    const dt = 1 / sampleRate;
-    
-    for (let i = 0; i < output.length; ++i) {
-      const lfo = Math.sin(this.lfoPhase * 2 * Math.PI);
-      const shift = lfo * depth;
-      const freq = baseFreq * Math.pow(2, shift / 1200);
+    const output = outputs[0]; const outputChannel = output[0]; const bufferLength = outputChannel.length;
+    if (this.startTime !== -1 && currentTime < this.startTime) { outputChannel.fill(0); return true; }
+    const baseFreqParams = parameters.baseFrequency; const depthParams = parameters.depth; const rateParams = parameters.rate;
+    const twoPi = 2 * Math.PI; const inverseSampleRate = 1 / sampleRate;
+    for (let i = 0; i < bufferLength; ++i) {
+      const currentBaseFreq = baseFreqParams.length > 1 ? baseFreqParams[i] : baseFreqParams[0];
+      const currentDepth = depthParams.length > 1 ? depthParams[i] : depthParams[0];
+      const currentRate = rateParams.length > 1 ? rateParams[i] : rateParams[0];
+      const calibrationFactor = 1.0 + (currentRate * 0.005);
+      const effectiveDepth = currentDepth * calibrationFactor;
+      const lfoValue = Math.sin(this.lfoPhase * twoPi);
+      const centsShift = lfoValue * effectiveDepth;
+      const frequencyMultiplier = Math.pow(2, centsShift / 1200);
+      const targetInstantaneousFreq = currentBaseFreq * frequencyMultiplier;
+      if (this.previousInstantaneousFreq === 0) this.previousInstantaneousFreq = targetInstantaneousFreq;
+      const averageFreq = (this.previousInstantaneousFreq + targetInstantaneousFreq) / 2;
+      this.carrierPhase += averageFreq * inverseSampleRate;
+      this.previousInstantaneousFreq = targetInstantaneousFreq;
+      if (this.carrierPhase >= 1.0) this.carrierPhase -= 1.0;
       
-      this.phase += freq * dt;
-      if (this.phase > 1) this.phase -= 1;
+      // MODIFIED: Softer, vocal-like harmonic series
+      let val = 0;
+      val += Math.sin(this.carrierPhase * twoPi);               // Fundamental
+      val += 0.25 * Math.sin(2 * this.carrierPhase * twoPi);    // 2nd harmonic (gentle)
+      val += 0.1 * Math.sin(3 * this.carrierPhase * twoPi);     // 3rd harmonic (subtle)
+      outputChannel[i] = val * 0.74; // Normalize
       
-      // Richer tone (Fundamental + Harmonics)
-      let val = Math.sin(this.phase * 2 * Math.PI);
-      val += 0.3 * Math.sin(this.phase * 4 * Math.PI); // 2nd harmonic
-      val += 0.15 * Math.sin(this.phase * 6 * Math.PI); // 3rd harmonic
-      
-      output[i] = val * 0.5; // Gain compensation
-      
-      this.lfoPhase += rate * dt;
-      if (this.lfoPhase > 1) this.lfoPhase -= 1;
+      this.lfoPhase += currentRate * inverseSampleRate;
+      if (this.lfoPhase >= 1.0) this.lfoPhase -= 1.0;
     }
     return true;
   }
@@ -393,422 +361,533 @@ class VibratoProcessor extends AudioWorkletProcessor {
 registerProcessor('vibrato-processor', VibratoProcessor);
 `;
 
-let audioCtx, vibratoNode, gainNode;
-let isPlaying = false;
-let sfxCtx; // Separate context for UI sounds
+let audioContext = null; let vibratoNode = null; let gainNode = null; let metronomeGainNode = null;
+let isPlaying = false; let isMetronomeOn = false; let metronomeInterval = null;
+const NOTE_GAIN = 0.60; const CLICK_GAIN = 0.25; const FADE_TIME = 0.05; const SYNC_DELAY = 0.1; const METRO_BPM = 60;
 
+// --- GAME STATE ---
+const MAX_ROUNDS = 5;
+let currentRound = 1; let currentScore = 0; let currentDifficulty = 'medium';
+let targetValues = { rate: 0, depth: 0 };
+let targetHistory = []; // Array to store last N targets
+const HISTORY_LENGTH = 3; // Remember last 3 rounds
+let currentOptions = []; let gameState = 'waiting'; 
+let isMultiplayer = false; let activePlayer = 1; let p1Score = 0; let p2Score = 0; let p1Guess = null; 
+
+const defaultScores = { easy: [0,0,0], medium: [0,0,0], hard: [0,0,0], insane: [0,0,0] };
+let highScores = defaultScores;
+try {
+    const saved = localStorage.getItem('vibratoHighScores');
+    if (saved) { highScores = JSON.parse(saved); if (!highScores.insane) highScores.insane = [0,0,0]; }
+} catch (e) { highScores = defaultScores; }
+
+// --- DOM ---
+const listenBtn = document.getElementById('listen-btn');
+const metroToggle = document.getElementById('metro-toggle');
+const multiToggle = document.getElementById('multi-toggle');
+const iconPlay = document.getElementById('icon-play');
+const iconStop = document.getElementById('icon-stop');
+const optionsContainer = document.getElementById('options-container');
+const roundDisplay = document.getElementById('round-display');
+const scoreDisplay = document.getElementById('score-display');
+const difficultySelect = document.getElementById('difficulty-select');
+const difficultyLabel = document.getElementById('difficulty-label');
+const restartBtn = document.getElementById('restart-btn');
+const resetScoreBtn = document.getElementById('reset-score-btn');
+const overlay = document.getElementById('feedback-overlay');
+const feedbackTitle = document.getElementById('feedback-title');
+const feedbackContent = document.getElementById('feedback-content');
+const nextRoundBtn = document.getElementById('next-round-btn');
+const highscoreList = document.getElementById('highscore-list');
+const highscoreTitle = document.getElementById('highscore-title');
+const hsContainer = document.getElementById('hs-container');
+const statsBar = document.getElementById('stats-bar');
+
+// --- LOGIC ---
 async function initAudio() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const blob = new Blob([workletCode], { type: 'application/javascript' });
-        await audioCtx.audioWorklet.addModule(URL.createObjectURL(blob));
-        sfxCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const url = URL.createObjectURL(blob);
+        await audioContext.audioWorklet.addModule(url);
     }
-    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    if (audioContext.state === 'suspended') await audioContext.resume();
 }
 
-function playNote(rate, depth) {
+function createMetronomePath() {
+    if (!metronomeGainNode) {
+        metronomeGainNode = audioContext.createGain();
+        metronomeGainNode.gain.value = CLICK_GAIN;
+        metronomeGainNode.connect(audioContext.destination);
+    }
+}
+
+function scheduleClick(time) {
+    createMetronomePath();
+    const clickOsc = audioContext.createOscillator();
+    const clickGain = audioContext.createGain();
+    clickOsc.type = 'sine'; clickOsc.frequency.setValueAtTime(1768, time);
+    clickGain.gain.setValueAtTime(1.0, time);
+    clickGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+    clickOsc.connect(clickGain); clickGain.connect(metronomeGainNode);
+    clickOsc.start(time); clickOsc.stop(time + 0.05);
+}
+
+function startMetronomeLoop(startTime) {
+    const interval = 60 / METRO_BPM; let nextClickTime = startTime; 
+    function scheduler() {
+        if (!isPlaying) return;
+        while (nextClickTime < audioContext.currentTime + 0.1) {
+            scheduleClick(nextClickTime); nextClickTime += interval;
+        }
+        metronomeInterval = setTimeout(scheduler, 25);
+    }
+    scheduler();
+}
+
+function cleanupMetronome() { clearTimeout(metronomeInterval); metronomeInterval = null; }
+
+function playSound() {
+    if (isPlaying) { stopSound(); return; }
     initAudio().then(() => {
         if (vibratoNode) { try { vibratoNode.disconnect(); } catch(e){} }
         if (gainNode) { try { gainNode.disconnect(); } catch(e){} }
-        
-        vibratoNode = new AudioWorkletNode(audioCtx, 'vibrato-processor');
-        gainNode = audioCtx.createGain();
-        
-        vibratoNode.parameters.get('rate').setValueAtTime(rate, audioCtx.currentTime);
-        vibratoNode.parameters.get('depth').setValueAtTime(depth, audioCtx.currentTime);
-        
-        vibratoNode.connect(gainNode).connect(audioCtx.destination);
-        
-        const now = audioCtx.currentTime;
-        gainNode.gain.setValueAtTime(0, now);
-        gainNode.gain.linearRampToValueAtTime(0.8, now + 0.1);
-        
-        isPlaying = true;
-        updatePlayBtn();
+        cleanupMetronome();
+        vibratoNode = new AudioWorkletNode(audioContext, 'vibrato-processor');
+        gainNode = audioContext.createGain();
+        vibratoNode.connect(gainNode); gainNode.connect(audioContext.destination);
+        const params = vibratoNode.parameters;
+        params.get('baseFrequency').setValueAtTime(442, audioContext.currentTime);
+        params.get('rate').setValueAtTime(targetValues.rate, audioContext.currentTime);
+        params.get('depth').setValueAtTime(targetValues.depth, audioContext.currentTime);
+        const now = audioContext.currentTime; const startTime = now + SYNC_DELAY; 
+        vibratoNode.port.postMessage({ startTime: startTime });
+        gainNode.gain.setValueAtTime(0, startTime);
+        gainNode.gain.linearRampToValueAtTime(NOTE_GAIN, startTime + FADE_TIME);
+        isPlaying = true; updatePlayButtonState();
+        if (isMetronomeOn) startMetronomeLoop(startTime);
     });
 }
 
-function stopNote() {
+function stopSound() {
+    if (!isPlaying) return;
+    cleanupMetronome();
     if (gainNode) {
-        const now = audioCtx.currentTime;
+        const now = audioContext.currentTime;
         gainNode.gain.cancelScheduledValues(now);
         gainNode.gain.setValueAtTime(gainNode.gain.value, now);
-        gainNode.gain.linearRampToValueAtTime(0, now + 0.1);
-        setTimeout(() => { if(vibratoNode) vibratoNode.disconnect(); isPlaying=false; updatePlayBtn(); }, 150);
+        gainNode.gain.linearRampToValueAtTime(0, now + FADE_TIME);
+    }
+    setTimeout(() => {
+        if (vibratoNode) { vibratoNode.disconnect(); vibratoNode = null; }
+        isPlaying = false; updatePlayButtonState();
+    }, (FADE_TIME * 1000) + 100);
+}
+
+function updatePlayButtonState() {
+    if (isPlaying) {
+        listenBtn.classList.add('playing'); iconPlay.style.display = 'none'; iconStop.style.display = 'block';
+    } else {
+        listenBtn.classList.remove('playing'); iconPlay.style.display = 'block'; iconStop.style.display = 'none';
     }
 }
 
-// Simple SFX Synthesizer
-function playSfx(type) {
-    if (!sfxCtx) sfxCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (sfxCtx.state === 'suspended') sfxCtx.resume();
-    
-    const osc = sfxCtx.createOscillator();
-    const g = sfxCtx.createGain();
-    osc.connect(g).connect(sfxCtx.destination);
-    
-    const now = sfxCtx.currentTime;
-    
-    if (type === 'correct') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(523.25, now); // C5
-        osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
-        g.gain.setValueAtTime(0.1, now);
-        g.gain.linearRampToValueAtTime(0, now + 0.3);
-        osc.start(now); osc.stop(now + 0.3);
-    } else if (type === 'wrong') {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(150, now);
-        osc.frequency.linearRampToValueAtTime(100, now + 0.3);
-        g.gain.setValueAtTime(0.1, now);
-        g.gain.linearRampToValueAtTime(0, now + 0.3);
-        osc.start(now); osc.stop(now + 0.3);
-    } else if (type === 'click') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(800, now);
-        g.gain.setValueAtTime(0.05, now);
-        g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.start(now); osc.stop(now + 0.05);
-    }
+function updateHighScoresDisplay() {
+    if (isMultiplayer) { hsContainer.style.display = 'none'; return; }
+    hsContainer.style.display = 'block';
+    const diff = difficultySelect.value; const scores = highScores[diff] || [0,0,0];
+    const diffName = diff.charAt(0).toUpperCase() + diff.slice(1);
+    highscoreTitle.textContent = `Top 3 High Scores (${diffName}):`;
+    highscoreList.innerHTML = scores.map(score => `<li>${score} pts</li>`).join('');
 }
 
-/* =========================================
-   GAME LOGIC & STATE
-   ========================================= */
-const LEVELS = [
-    { id: 1, title: "Wide vs Narrow", desc: "Learn to hear Depth", diff: 'easy', type: 'depth', range: [10, 50], rate: 5 },
-    { id: 2, title: "Fast vs Slow", desc: "Learn to hear Speed", diff: 'easy', type: 'rate', range: [4, 7], depth: 30 },
-    { id: 3, title: "Vibrato Basics", desc: "Mix of Speed and Depth", diff: 'medium', type: 'mix' },
-    { id: 4, title: "Subtle Nuance", desc: "Harder distinctions", diff: 'hard', type: 'mix' },
-    { id: 5, title: "Virtuoso", desc: "Expert ears only", diff: 'insane', type: 'mix' }
-];
+function getRandom(min, max, decimals = 0) {
+    const val = Math.random() * (max - min) + min;
+    return parseFloat(val.toFixed(decimals));
+}
 
-let state = {
-    hearts: 5,
-    gems: 100,
-    streak: 0,
-    lastLogin: null,
-    xp: 0,
-    unlocked: [1]
-};
-
-// Load / Save
-function loadState() {
-    const s = localStorage.getItem('vibratoState');
-    if (s) state = { ...state, ...JSON.parse(s) };
+// MODIFIED: Extended history buffer to prevent oscillation patterns
+function generateTarget() {
+    let rate, depth;
+    const MAX_ATTEMPTS = 150;
     
-    // Streak Logic
-    const today = new Date().toDateString();
-    if (state.lastLogin !== today) {
-        const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-        if (state.lastLogin === yesterday.toDateString()) {
-            // Streak continues (increment happens on game complete)
-        } else {
-            // Streak broken (if not first login)
-            if (state.lastLogin) state.streak = 0;
+    for (let attempts = 0; attempts < MAX_ATTEMPTS; attempts++) {
+        rate = getRandom(4, 7, 1);
+        depth = getRandom(11, 44, 0);
+        
+        // Check against ALL recent targets in history
+        const isTooSimilar = targetHistory.some(historyTarget => {
+            const rateDiff = Math.abs(rate - historyTarget.rate);
+            const depthDiff = Math.abs(depth - historyTarget.depth);
+            return rateDiff < 1.0 && depthDiff < 10; // Too close to ANY recent target
+        });
+        
+        if (!isTooSimilar) break; // Found a good target
+    }
+    
+    // Update history (keep only last N entries)
+    targetHistory.push({ rate, depth });
+    if (targetHistory.length > HISTORY_LENGTH) {
+        targetHistory.shift(); // Remove oldest entry
+    }
+    
+    return { rate, depth };
+}
+
+// MODIFIED: More aggressive difficulty scaling and minimum separation constraints
+function generateOptions(target, difficulty) {
+    if (difficulty === 'insane') return [];
+    
+    // More pronounced deviation settings with minimum separation
+    const difficultySettings = {
+        easy:   { numOptions: 2, rateDev: 4.0, depthDev: 35, minRateSep: 1.5, minDepthSep: 15 },
+        medium: { numOptions: 3, rateDev: 2.0, depthDev: 20, minRateSep: 0.8, minDepthSep: 8 },
+        hard:   { numOptions: 5, rateDev: 1.0, depthDev: 10, minRateSep: 0.4, minDepthSep: 4 }
+    };
+    
+    const settings = difficultySettings[difficulty] || difficultySettings.medium;
+    const opts = [target];
+    const usedRates = new Set([target.rate.toFixed(1)]);
+    const usedDepths = new Set([target.depth.toString()]);
+    const usedPairs = new Set([`${target.rate.toFixed(1)}-${target.depth}`]);
+
+    // Generate distractors
+    for (let i = 0; i < settings.numOptions - 1; i++) {
+        let newOpt; 
+        let valid = false; 
+        let attempts = 0;
+        
+        while (!valid && attempts < 75) {
+            attempts++;
+            
+            // Simpler, more predictable generation
+            const direction = Math.random() > 0.5 ? 1 : -1;
+            const useFullDev = Math.random() > 0.3; // 70% chance of full deviation
+            const rateMagnitude = useFullDev ? settings.rateDev : (settings.rateDev * 0.6);
+            const depthMagnitude = useFullDev ? settings.depthDev : (settings.depthDev * 0.6);
+            
+            // Simpler jitter
+            const rateJitter = (Math.random() - 0.5) * 0.4; // ±0.2
+            const depthJitter = Math.floor(Math.random() * 5) - 2; // ±2
+
+            let r = target.rate + (rateMagnitude + rateJitter) * direction;
+            let d = target.depth + (depthMagnitude + depthJitter) * direction;
+            
+            r = Math.max(4, Math.min(7, r));
+            d = Math.max(11, Math.min(44, d));
+            r = parseFloat(r.toFixed(1));
+
+            const rateKey = r.toFixed(1);
+            const depthKey = d.toString();
+            const pairKey = `${rateKey}-${depthKey}`;
+            
+            // Check uniqueness
+            const isRateUnique = !usedRates.has(rateKey);
+            const isDepthUnique = !usedDepths.has(depthKey);
+            const isPairUnique = !usedPairs.has(pairKey);
+            const tooCloseToTarget = Math.abs(r - target.rate) < 0.1 && Math.abs(d - target.depth) < 2;
+            
+            // Check minimum separation from existing options
+            let tooCloseToOthers = false;
+            for (const opt of opts) {
+                if (Math.abs(r - opt.rate) < settings.minRateSep && Math.abs(d - opt.depth) < settings.minDepthSep) {
+                    tooCloseToOthers = true;
+                    break;
+                }
+            }
+            
+            if (isRateUnique && isDepthUnique && isPairUnique && !tooCloseToTarget && !tooCloseToOthers) {
+                valid = true;
+                usedRates.add(rateKey);
+                usedDepths.add(depthKey);
+                usedPairs.add(pairKey);
+                newOpt = { rate: r, depth: d };
+            }
         }
-    }
-    updateHeader();
-}
-
-function saveState() {
-    localStorage.setItem('vibratoState', JSON.stringify(state));
-    updateHeader();
-}
-
-function updateHeader() {
-    document.getElementById('heart-val').innerText = state.hearts;
-    document.getElementById('gem-val').innerText = state.gems;
-    document.getElementById('streak-val').innerText = state.streak;
-}
-
-/* =========================================
-   UI NAVIGATION
-   ========================================= */
-function showView(id) {
-    document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-    playSfx('click');
-}
-
-function goHome() {
-    stopNote();
-    renderPath();
-    showView('home-view');
-}
-
-function openShop() {
-    showView('shop-view');
-}
-
-function buyHearts() {
-    if (state.hearts >= 5) { alert("Hearts full!"); return; }
-    if (state.gems >= 350) {
-        state.gems -= 350;
-        state.hearts = 5;
-        playSfx('correct');
-        saveState();
-        alert("Hearts Refilled!");
-    } else {
-        alert("Not enough gems!");
-    }
-}
-
-/* =========================================
-   GAMEPLAY
-   ========================================= */
-let currentLevel = null;
-let round = 0;
-let totalRounds = 5;
-let target = {};
-let options = [];
-
-function startLevel(levelId) {
-    if (state.hearts <= 0) {
-        document.getElementById('modal-title').innerText = "Out of Hearts!";
-        document.getElementById('modal-msg').innerText = "You need hearts to learn. Go to the shop to refill.";
-        document.getElementById('modal-btn').innerText = "Go to Shop";
-        document.getElementById('modal-btn').onclick = () => { closeModal(); openShop(); };
-        document.getElementById('modal-overlay').classList.add('visible');
-        return;
-    }
-
-    currentLevel = LEVELS.find(l => l.id === levelId);
-    round = 0;
-    showView('game-view');
-    nextRound();
-}
-
-function nextRound() {
-    if (round >= totalRounds) {
-        finishLevel();
-        return;
+        
+        // Improved fallback: if we failed, still respect difficulty
+        if (!valid) {
+            const fallbackAttempts = 50;
+            for (let j = 0; j < fallbackAttempts; j++) {
+                const direction = Math.random() > 0.5 ? 1 : -1;
+                const r = parseFloat((target.rate + direction * settings.rateDev * (0.5 + Math.random() * 0.5)).toFixed(1));
+                const d = Math.round(target.depth + direction * settings.depthDev * (0.5 + Math.random() * 0.5));
+                
+                if (r >= 4 && r <= 7 && d >= 11 && d <= 44) {
+                    const rateKey = r.toFixed(1);
+                    const depthKey = d.toString();
+                    if (!usedPairs.has(`${rateKey}-${depthKey}`)) {
+                        newOpt = { rate: r, depth: d };
+                        usedRates.add(rateKey);
+                        usedDepths.add(depthKey);
+                        usedPairs.add(`${rateKey}-${depthKey}`);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (newOpt) opts.push(newOpt);
     }
     
-    round++;
-    document.getElementById('game-progress').style.width = `${((round-1)/totalRounds)*100}%`;
-    document.getElementById('feedback-sheet').classList.remove('visible', 'correct', 'wrong');
-    stopNote();
-    
-    // Generate Puzzle
-    target = generateTarget(currentLevel);
-    options = generateOptions(target, currentLevel);
-    
-    // Render UI
-    const container = document.getElementById('options-container');
-    container.innerHTML = '';
-    
-    options.forEach(opt => {
-        const btn = document.createElement('button');
-        btn.className = 'game-btn';
-        btn.innerHTML = `${opt.rate} Hz<br><span style="font-size:0.8rem; font-weight:400">${opt.depth} cents</span>`;
-        btn.onclick = () => checkAnswer(opt, btn);
-        container.appendChild(btn);
-    });
-    
-    // Auto play (optional, maybe better manual)
-    // playNote(target.rate, target.depth); 
-}
-
-function generateTarget(lvl) {
-    let r, d;
-    if (lvl.type === 'depth') {
-        r = lvl.rate;
-        d = Math.floor(Math.random() * (lvl.range[1] - lvl.range[0]) + lvl.range[0]);
-    } else if (lvl.type === 'rate') {
-        r = (Math.random() * (lvl.range[1] - lvl.range[0]) + lvl.range[0]).toFixed(1);
-        d = lvl.depth;
-    } else {
-        r = (Math.random() * 3 + 4).toFixed(1);
-        d = Math.floor(Math.random() * 30 + 10);
-    }
-    return { rate: parseFloat(r), depth: parseInt(d) };
-}
-
-function generateOptions(tgt, lvl) {
-    let opts = [tgt];
-    // Create distractor
-    let distractor = { ...tgt };
-    const isRateQ = (lvl.type === 'rate') || (lvl.type === 'mix' && Math.random()>0.5);
-    
-    if (isRateQ) {
-        let diff = lvl.diff === 'easy' ? 2.0 : (lvl.diff === 'medium' ? 1.0 : 0.4);
-        distractor.rate = parseFloat((tgt.rate + (Math.random()>0.5 ? diff : -diff)).toFixed(1));
-    } else {
-        let diff = lvl.diff === 'easy' ? 25 : (lvl.diff === 'medium' ? 15 : 5);
-        distractor.depth = tgt.depth + (Math.random()>0.5 ? diff : -diff);
-        if (distractor.depth < 5) distractor.depth = 10;
-    }
-    
-    opts.push(distractor);
     return opts.sort(() => Math.random() - 0.5);
 }
 
-function checkAnswer(selected, btnElement) {
-    stopNote();
-    const isCorrect = (selected.rate === target.rate && selected.depth === target.depth);
-    const sheet = document.getElementById('feedback-sheet');
-    const title = document.getElementById('sheet-title');
-    const msg = document.getElementById('sheet-msg');
-    const btn = document.getElementById('sheet-btn');
+function startRound() {
+    stopSound();
+    document.getElementById('game-card').classList.remove('shake-effect');
     
-    document.querySelectorAll('.game-btn').forEach(b => b.disabled = true);
+    gameState = 'playing';
     
-    if (isCorrect) {
-        playSfx('correct');
-        fireConfetti();
-        btnElement.classList.add('correct');
-        sheet.classList.add('correct');
-        title.innerHTML = `<span>🎉</span> Excellent!`;
-        msg.innerHTML = `That sounded just right.`;
-        btn.classList.add('correct'); btn.classList.remove('wrong');
-        btn.onclick = nextRound;
-        
-        // Reward
-        state.xp += 10;
-        state.gems += 2;
+    // Multiplayer: Only generate new target on Player 1's turn (both hear same target)
+    if (!isMultiplayer || (isMultiplayer && activePlayer === 1)) {
+        targetValues = generateTarget();
+        currentOptions = generateOptions(targetValues, currentDifficulty);
+    }
+
+    roundDisplay.textContent = `Round: ${currentRound}/${MAX_ROUNDS}`;
+    
+    if (isMultiplayer) {
+        statsBar.classList.add('multi');
+        scoreDisplay.innerHTML = `<span style="color:var(--p1)">P1: ${p1Score}</span> | <span style="color:var(--p2)">P2: ${p2Score}</span>`;
     } else {
-        playSfx('wrong');
-        if (navigator.vibrate) navigator.vibrate(200);
-        btnElement.classList.add('wrong');
-        state.hearts--;
-        updateHeader(); // animate heart loss
+        statsBar.classList.remove('multi');
+        scoreDisplay.textContent = `Score: ${currentScore}`;
+    }
+    
+    renderUI();
+}
+
+function renderUI() {
+    optionsContainer.innerHTML = '';
+
+    if (currentDifficulty === 'insane') {
+        const insaneDiv = document.createElement('div');
+        insaneDiv.className = 'insane-inputs';
+        let turnHtml = ''; let btnText = 'Submit Answer';
         
-        sheet.classList.add('wrong');
-        title.innerHTML = `<span>💔</span> Incorrect`;
-        msg.innerHTML = `Correct was: ${target.rate}Hz / ${target.depth}c`;
-        btn.classList.add('wrong'); btn.classList.remove('correct');
-        
-        if (state.hearts <= 0) {
-            btn.innerText = "End Game";
-            btn.onclick = () => { sheet.classList.remove('visible'); goHome(); openShop(); };
-        } else {
-            btn.innerText = "Continue";
-            btn.onclick = nextRound;
+        if (isMultiplayer) {
+            if (activePlayer === 1) {
+                turnHtml = `<span class="turn-indicator p1-turn">Player 1's Turn</span>`;
+                btnText = 'Submit (Player 1)';
+            } else {
+                turnHtml = `<span class="turn-indicator p2-turn">Player 2's Turn</span>`;
+                btnText = 'Submit (Player 2)';
+            }
         }
-    }
-    
-    saveState();
-    sheet.classList.add('visible');
-}
 
-function finishLevel() {
-    // Streak Update
-    const today = new Date().toDateString();
-    if (state.lastLogin !== today) {
-        state.streak++;
-        state.lastLogin = today;
-    }
-    
-    // Unlock next level
-    if (currentLevel.id === state.unlocked[state.unlocked.length - 1]) {
-        const nextId = currentLevel.id + 1;
-        if (nextId <= LEVELS.length && !state.unlocked.includes(nextId)) {
-            state.unlocked.push(nextId);
-        }
-    }
-    
-    saveState();
-    
-    // Show Modal
-    document.getElementById('modal-title').innerText = "Level Complete!";
-    document.getElementById('modal-msg').innerText = `You earned XP and Gems! Streak: ${state.streak} 🔥`;
-    document.getElementById('modal-btn').innerText = "Continue";
-    document.getElementById('modal-btn').onclick = () => { closeModal(); goHome(); };
-    document.getElementById('modal-overlay').classList.add('visible');
-    playSfx('correct');
-    fireConfetti();
-}
-
-function updatePlayBtn() {
-    const btn = document.getElementById('listen-btn');
-    if (isPlaying) {
-        btn.classList.add('playing');
-        document.getElementById('icon-play').style.display = 'none';
-        document.getElementById('icon-stop').style.display = 'block';
-    } else {
-        btn.classList.remove('playing');
-        document.getElementById('icon-play').style.display = 'block';
-        document.getElementById('icon-stop').style.display = 'none';
-    }
-}
-
-document.getElementById('listen-btn').addEventListener('click', () => {
-    if (isPlaying) stopNote(); else playNote(target.rate, target.depth);
-});
-
-function closeModal() { document.getElementById('modal-overlay').classList.remove('visible'); }
-
-/* =========================================
-   RENDER PATH
-   ========================================= */
-function renderPath() {
-    const list = document.getElementById('level-list');
-    list.innerHTML = '';
-    
-    LEVELS.forEach(lvl => {
-        const isUnlocked = state.unlocked.includes(lvl.id);
-        const isCompleted = state.unlocked.includes(lvl.id + 1) || (isUnlocked && lvl.id < Math.max(...state.unlocked));
-        
-        const node = document.createElement('div');
-        node.className = `level-node ${!isUnlocked ? 'locked' : ''} ${isCompleted ? 'completed' : ''}`;
-        
-        node.innerHTML = `
-            <div class="level-icon">
-                ${isCompleted ? '✓' : (isUnlocked ? '★' : '🔒')}
-            </div>
-            <div class="level-info">
-                <h3>Level ${lvl.id}: ${lvl.title}</h3>
-                <p>${lvl.desc}</p>
-            </div>
+        insaneDiv.innerHTML = `
+            ${turnHtml}
+            <label>Speed (Hz): <input type="number" id="input-rate" step="0.1" placeholder="4.0 - 7.0"></label>
+            <label>Amplitude (cents): <input type="number" id="input-depth" step="1" placeholder="11 - 44"></label>
+            <button id="submit-insane" class="action-btn" style="width:100%; margin-top:10px; background-color: var(--accent);">${btnText}</button>
         `;
-        
-        if (isUnlocked) {
-            node.onclick = () => startLevel(lvl.id);
-        }
-        
-        list.appendChild(node);
-    });
-}
-
-/* =========================================
-   VISUAL EFFECTS
-   ========================================= */
-const canvas = document.getElementById('effects-canvas');
-const ctx = canvas.getContext('2d');
-let particles = [];
-
-function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-
-function fireConfetti() {
-    for (let i=0; i<80; i++) {
-        particles.push({
-            x: window.innerWidth/2, y: window.innerHeight/2,
-            vx: (Math.random()-0.5)*15, vy: (Math.random()-1)*15,
-            c: `hsl(${Math.random()*360}, 100%, 50%)`, size: Math.random()*8+4
+        optionsContainer.appendChild(insaneDiv);
+        document.getElementById('submit-insane').addEventListener('click', handleInsaneGuess);
+    } else {
+        optionsContainer.className = 'options-grid';
+        currentOptions.forEach((opt) => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.innerHTML = `<strong>${opt.rate}</strong> Hz <br> <span><strong>${opt.depth}</strong> cents</span>`;
+            btn.onclick = () => handleStandardGuess(opt);
+            optionsContainer.appendChild(btn);
         });
     }
-    requestAnimationFrame(loopEffects);
 }
 
-function loopEffects() {
-    if (particles.length === 0) return;
-    ctx.clearRect(0,0,canvas.width, canvas.height);
-    particles.forEach((p, i) => {
-        p.x += p.vx; p.y += p.vy; p.vy += 0.5; // gravity
-        ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, p.size, p.size);
-        if (p.y > window.innerHeight) particles.splice(i, 1);
-    });
-    requestAnimationFrame(loopEffects);
+function handleStandardGuess(selectedOption) {
+    stopSound();
+    const isCorrect = (selectedOption.rate === targetValues.rate && selectedOption.depth === targetValues.depth);
+    overlay.classList.remove('gameover', 'correct', 'wrong', 'pass-device');
+    overlay.className = 'overlay visible';
+
+    if (isCorrect) {
+        fireConfetti();
+        overlay.classList.add('correct');
+        feedbackTitle.textContent = "Correct!";
+        let points = 10;
+        if (currentDifficulty === 'medium') points = 20;
+        if (currentDifficulty === 'hard') points = 30;
+        currentScore += points;
+        feedbackContent.innerHTML = `<p>Perfect pitch perception!</p>`;
+    } else {
+        triggerShake();
+        overlay.classList.add('wrong');
+        feedbackTitle.textContent = "Wrong Answer";
+        feedbackContent.innerHTML = `<p>Correct: <strong>${targetValues.rate} Hz / ${targetValues.depth} cents</strong></p>`;
+    }
+    scoreDisplay.textContent = `Score: ${currentScore}`;
+    setupNextStep();
 }
 
-// Init
-loadState();
-renderPath();
+// MODIFIED: Linear scoring for both rate and depth
+function calculateScore(userRate, userDepth) {
+    // Rate: Linear penalty (50% error = 0 points)
+    const rateDiff = Math.abs(userRate - targetValues.rate);
+    const rateErrorPct = rateDiff / targetValues.rate;
+    let rateScore = 50 * (1 - rateErrorPct * 2);
+    if (rateScore < 0) rateScore = 0;
+    if (userRate === targetValues.rate) rateScore = 50;
 
+    // Depth: Linear penalty (50% error = 0 points)
+    const depthDiff = Math.abs(userDepth - targetValues.depth);
+    const depthErrorPct = depthDiff / targetValues.depth;
+    let depthScore = 50 * (1 - depthErrorPct * 2);
+    if (depthScore < 0) depthScore = 0;
+    if (userDepth === targetValues.depth) depthScore = 50;
+
+    return Math.round(rateScore + depthScore);
+}
+
+function handleInsaneGuess() {
+    stopSound();
+    const rateInput = document.getElementById('input-rate');
+    const depthInput = document.getElementById('input-depth');
+    if (!rateInput.value || !depthInput.value) { alert("Please enter both Speed and Amplitude values."); return; }
+
+    const userRate = parseFloat(rateInput.value);
+    const userDepth = parseFloat(depthInput.value);
+    
+    if (isMultiplayer) {
+        if (activePlayer === 1) {
+            p1Guess = { rate: userRate, depth: userDepth };
+            overlay.classList.remove('gameover', 'correct', 'wrong');
+            overlay.classList.add('visible', 'pass-device');
+            feedbackTitle.textContent = "Switch Players";
+            feedbackContent.innerHTML = "<p>Pass the device to <strong>Player 2</strong>.<br>Player 2 can listen again before guessing.</p>";
+            nextRoundBtn.textContent = "Player 2 Start";
+            activePlayer = 2; gameState = 'switch_turn'; return; 
+        } else {
+            const pts1 = calculateScore(p1Guess.rate, p1Guess.depth);
+            const pts2 = calculateScore(userRate, userDepth);
+            p1Score += pts1; p2Score += pts2;
+            let resultMsg = "";
+            if (pts1 > pts2) { resultMsg = "Player 1 Wins!"; if (pts1 >= 90) fireConfetti(); }
+            else if (pts2 > pts1) { resultMsg = "Player 2 Wins!"; if (pts2 >= 90) fireConfetti(); }
+            else { resultMsg = "It's a Tie!"; if (pts1 >= 90) fireConfetti(); }
+            
+            overlay.classList.remove('pass-device', 'gameover', 'correct', 'wrong');
+            overlay.className = 'overlay visible';
+            feedbackTitle.textContent = resultMsg;
+            feedbackContent.innerHTML = `
+                <div class="mp-results-grid">
+                    <div class="mp-card ${pts1 > pts2 ? 'winner' : ''}">
+                        <div style="color:var(--p1); font-weight:bold;">Player 1</div>
+                        <div>${p1Guess.rate}Hz / ${p1Guess.depth}c</div>
+                        <span class="mp-score-text">+${pts1} pts</span>
+                    </div>
+                    <div class="mp-card ${pts2 > pts1 ? 'winner' : ''}">
+                        <div style="color:var(--p2); font-weight:bold;">Player 2</div>
+                        <div>${userRate}Hz / ${userDepth}c</div>
+                        <span class="mp-score-text">+${pts2} pts</span>
+                    </div>
+                </div>
+                <p>Correct: <strong>${targetValues.rate}Hz / ${targetValues.depth}c</strong></p>
+            `;
+            activePlayer = 1; 
+        }
+    } else {
+        const pts = calculateScore(userRate, userDepth);
+        currentScore += pts;
+        overlay.classList.remove('gameover', 'correct', 'wrong');
+        overlay.className = 'overlay visible';
+        if (pts >= 90) { fireConfetti(); overlay.classList.add('correct'); } else { overlay.classList.add('wrong'); }
+        feedbackTitle.textContent = pts === 100 ? "PERFECT!" : "Result";
+        feedbackContent.innerHTML = `<p>You earned <strong>${pts} points</strong>.</p><p>Target: ${targetValues.rate}Hz / ${targetValues.depth}c<br>You: ${userRate}Hz / ${userDepth}c</p>`;
+        scoreDisplay.textContent = `Score: ${currentScore}`;
+    }
+    setupNextStep();
+}
+
+function setupNextStep() {
+    if (currentRound >= MAX_ROUNDS) {
+        nextRoundBtn.textContent = "See Final Results";
+        gameState = 'results';
+    } else {
+        nextRoundBtn.textContent = "Next Round";
+        gameState = 'feedback';
+    }
+}
+
+function endGame() {
+    document.getElementById('game-card').classList.remove('shake-effect');
+    overlay.classList.remove('correct', 'wrong', 'pass-device');
+    overlay.classList.add('gameover');
+    feedbackTitle.textContent = "Game Over";
+    fireConfetti();
+
+    if (isMultiplayer) {
+        let winnerMsg = ""; let finalHtml = "";
+        if (p1Score > p2Score) { winnerMsg = "🏆 Player 1 is the Champion! 🏆"; finalHtml = `<p>Player 2 needs to practice more!</p>`; }
+        else if (p2Score > p1Score) { winnerMsg = "🏆 Player 2 is the Champion! 🏆"; finalHtml = `<p>Player 1 has been dethroned!</p>`; }
+        else { winnerMsg = "It's a Draw!"; finalHtml = `<p>Both ears are equally amazing!</p>`; }
+        feedbackTitle.textContent = winnerMsg;
+        feedbackContent.innerHTML = `
+            <h2 style="margin:0; font-size:3rem; color:var(--p1)">${p1Score}</h2><div style="font-size:0.8rem; margin-bottom:10px;">PLAYER 1</div>
+            <h2 style="margin:0; font-size:3rem; color:var(--p2)">${p2Score}</h2><div style="font-size:0.8rem; margin-bottom:20px;">PLAYER 2</div>${finalHtml}`;
+    } else {
+        let msg = `<p>Final Score: ${currentScore}</p>`;
+        const levelScores = highScores[currentDifficulty];
+        levelScores.push(currentScore); levelScores.sort((a, b) => b - a);
+        highScores[currentDifficulty] = levelScores.slice(0, 3);
+        localStorage.setItem('vibratoHighScores', JSON.stringify(highScores));
+        if (currentScore > 0 && highScores[currentDifficulty].includes(currentScore)) msg += `<span class="new-record">🏆 TOP SCORE (${currentDifficulty.toUpperCase()})! 🏆</span>`;
+        feedbackContent.innerHTML = msg; updateHighScoresDisplay();
+    }
+    nextRoundBtn.textContent = "Play Again"; gameState = 'gameover';
+}
+
+function restartGame() {
+    currentRound = 1; currentScore = 0; p1Score = 0; p2Score = 0; activePlayer = 1;
+    targetHistory = []; // Clear history buffer on restart
+    if (isMultiplayer) {
+        difficultySelect.value = 'insane'; difficultySelect.disabled = true; 
+        difficultyLabel.textContent = "Mode: Multiplayer (Insane)";
+    } else {
+        difficultySelect.disabled = false;
+        currentDifficulty = difficultySelect.value;
+        const diffName = currentDifficulty.charAt(0).toUpperCase() + currentDifficulty.slice(1);
+        difficultyLabel.textContent = `Difficulty: ${diffName}`;
+    }
+    currentDifficulty = difficultySelect.value;
+    updateHighScoresDisplay(); overlay.classList.remove('visible', 'gameover'); startRound();
+}
+
+// RESET BUTTON LISTENER
+resetScoreBtn.addEventListener('click', () => {
+    const diff = difficultySelect.value;
+    const diffName = diff.charAt(0).toUpperCase() + diff.slice(1);
+    if (confirm(`Reset high scores for ${diffName} mode?`)) {
+        highScores[diff] = [0, 0, 0];
+        localStorage.setItem('vibratoHighScores', JSON.stringify(highScores));
+        updateHighScoresDisplay();
+    }
+});
+
+listenBtn.addEventListener('click', () => { playSound(); });
+metroToggle.addEventListener('click', () => {
+    isMetronomeOn = !isMetronomeOn; metroToggle.classList.toggle('active', isMetronomeOn);
+    metroToggle.textContent = `Metronome: ${isMetronomeOn ? 'On' : 'Off'}`;
+    if (isPlaying) { stopSound(); setTimeout(playSound, 150); }
+});
+multiToggle.addEventListener('click', () => {
+    isMultiplayer = !isMultiplayer; multiToggle.classList.toggle('active', isMultiplayer);
+    multiToggle.textContent = `Multiplayer: ${isMultiplayer ? 'On' : 'Off'}`;
+    stopSound(); restartGame();
+});
+nextRoundBtn.addEventListener('click', () => {
+    if (gameState === 'results') endGame();
+    else if (gameState === 'gameover') restartGame();
+    else if (gameState === 'switch_turn') { overlay.classList.remove('visible', 'pass-device'); renderUI(); }
+    else if (gameState === 'feedback') {
+        if (currentRound < MAX_ROUNDS) { currentRound++; overlay.classList.remove('visible'); startRound(); }
+    }
+});
+restartBtn.addEventListener('click', () => { stopSound(); restartGame(); });
+difficultySelect.addEventListener('change', () => { stopSound(); restartGame(); });
+
+updateHighScoresDisplay(); startRound();
 </script>
 </body>
 </html>
