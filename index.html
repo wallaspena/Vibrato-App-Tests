@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Vibrato Master - Slider Edition</title>
+<title>Vibrato Master - Final</title>
 <style>
     :root {
         --primary: #58cc02;
@@ -140,7 +140,7 @@
     .game-btn.wrong { background: #ffdfe0; border-color: var(--danger); color: var(--danger-dark); }
     .game-btn:disabled { opacity: 1; cursor: default; pointer-events: none; }
 
-    /* --- SLIDER STYLES (NEW) --- */
+    /* --- SLIDER STYLES --- */
     .insane-inputs {
         display: flex; flex-direction: column; gap: 20px; text-align: left;
         width: 100%; max-width: 400px;
@@ -309,7 +309,7 @@
 
 <script>
 /* =========================================
-   AUDIO ENGINE
+   AUDIO ENGINE (AudioWorklet + Cleanups)
    ========================================= */
 const workletCode = `
 class VibratoProcessor extends AudioWorkletProcessor {
@@ -470,7 +470,7 @@ function updatePlayButton() {
     }
 }
 
-// Background Handling
+// Background Handling (Memory Leak Fix)
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         stopTone();
@@ -515,7 +515,7 @@ let state = {
 };
 
 try {
-    const saved = localStorage.getItem('vm_best_scores_pro');
+    const saved = localStorage.getItem('vm_best_scores_final');
     if (saved) state.bestScores = JSON.parse(saved);
 } catch(e){}
 
@@ -583,10 +583,9 @@ function resetCurrentMode() {
 }
 
 function resetSliders() {
-    // Reset inputs to Minimum values to avoid bias
+    // Start at minimum to prevent bias
     document.getElementById('input-rate').value = 4.0;
     document.getElementById('input-depth').value = 11;
-    // Update labels
     document.getElementById('rate-display').innerText = "4.0 Hz";
     document.getElementById('depth-display').innerText = "11 cents";
 }
@@ -612,7 +611,7 @@ function nextRound() {
         const options = generateOptions(state.target, state.currentMode.type);
         renderOptions(options);
     } else {
-        // Reset Sliders every round to prevent anchoring bias
+        // Reset Sliders every round
         resetSliders();
         document.getElementById('submit-insane').disabled = false;
     }
@@ -631,6 +630,7 @@ function generateTarget(type) {
         if (type === 'rate') depth = 25;
         if (type === 'depth') rate = 5.5;
 
+        // Anti-repetition logic (History Buffer)
         const isTooSimilar = state.history.some(h => {
             const rateDiff = Math.abs(rate - h.rate);
             const depthDiff = Math.abs(depth - h.depth);
@@ -645,7 +645,8 @@ function generateTarget(type) {
 }
 
 function generateOptions(target, type) {
-    const numOptions = 3; 
+    // 2 Options for fast-paced arcade fun
+    const numOptions = 2; 
     const rateDev = type === 'depth' ? 0 : 1.5;
     const depthDev = type === 'rate' ? 0 : 15;
     
@@ -660,12 +661,13 @@ function generateOptions(target, type) {
             const dir = Math.random() > 0.5 ? 1 : -1;
             
             if (rateDev > 0) {
-                r = target.rate + (dir * rateDev * (0.5 + Math.random()));
+                // Variation logic
+                r = target.rate + (dir * rateDev * (0.8 + Math.random() * 0.4));
                 r = Math.max(4.0, Math.min(7.0, r));
                 r = parseFloat(r.toFixed(1));
             }
             if (depthDev > 0) {
-                d = target.depth + (dir * depthDev * (0.5 + Math.random()));
+                d = target.depth + (dir * depthDev * (0.8 + Math.random() * 0.4));
                 d = Math.floor(Math.max(11, Math.min(44, d)));
             }
             
@@ -677,7 +679,14 @@ function generateOptions(target, type) {
                 break;
             }
         }
-        if (opt) options.push(opt);
+        // Fallback generator
+        if (!opt) {
+             if (rateDev > 0) opt = { rate: target.rate + (Math.random()>0.5?1.5:-1.5), depth: target.depth };
+             else opt = { rate: target.rate, depth: target.depth + (Math.random()>0.5?15:-15) };
+             opt.rate = parseFloat(Math.max(4.0, Math.min(7.0, opt.rate)).toFixed(1));
+             opt.depth = Math.floor(Math.max(11, Math.min(44, opt.depth)));
+        }
+        options.push(opt);
     }
     return options.sort(() => Math.random() - 0.5);
 }
@@ -741,6 +750,8 @@ function handleInsaneSubmit() {
 }
 
 function calculateScore(userRate, userDepth) {
+    // Simple Linear Scoring: 50 pts per parameter. 
+    // Rate: -5 pts per 0.1Hz. Depth: -2.5 pts per 1 cent.
     const rateDiff = Math.abs(userRate - state.target.rate);
     const depthDiff = Math.abs(userDepth - state.target.depth);
     let rateScore = 50 - (rateDiff * 50);
@@ -835,7 +846,6 @@ function showMultiplayerSwitch() {
         sheet.classList.remove('visible');
         state.activePlayer = 2;
         updateUI();
-        // Reset sliders for Player 2
         resetSliders();
         setTimeout(() => playTone(state.target.rate, state.target.depth), 300);
     };
@@ -880,7 +890,7 @@ function triggerGameOver(reason) {
     let score = state.currentMode.type === 'insane' ? state.insaneTotalScore : state.modeState[mode].currentScore;
     if (score > (state.bestScores[mode] || 0)) {
         state.bestScores[mode] = score;
-        localStorage.setItem('vm_best_scores_pro', JSON.stringify(state.bestScores));
+        localStorage.setItem('vm_best_scores_final', JSON.stringify(state.bestScores));
     }
     let msg, icon;
     if (state.currentMode.type === 'insane') {
@@ -967,7 +977,6 @@ function loop() {
     if (particles.length > 0) requestAnimationFrame(loop);
 }
 
-// SLIDER LISTENERS
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('listen-btn').addEventListener('click', () => {
         if (document.getElementById('listen-btn').classList.contains('disabled')) return;
@@ -989,7 +998,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('submit-insane').addEventListener('click', handleInsaneSubmit);
     
-    // SLIDER UPDATES
+    // Slider Events
     document.getElementById('input-rate').addEventListener('input', (e) => {
         document.getElementById('rate-display').innerText = parseFloat(e.target.value).toFixed(1) + " Hz";
     });
