@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Vibrato Master - Hybrid Edition</title>
+<title>Vibrato Master - Slider Edition</title>
 <style>
     :root {
         --primary: #58cc02;
@@ -58,7 +58,7 @@
         z-index: 10; flex-shrink: 0;
     }
 
-    .stat-badge { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.1rem; }
+    .stat-badge { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.1rem; cursor: pointer; }
     .heart-icon { color: var(--danger); fill: currentColor; animation: pulse 2s infinite; }
     .streak-badge { background: var(--warning); color: #8a6d00; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; display: none; }
     .running-score { font-size: 1.2rem; font-weight: 800; color: var(--primary); display: none; }
@@ -140,16 +140,41 @@
     .game-btn.wrong { background: #ffdfe0; border-color: var(--danger); color: var(--danger-dark); }
     .game-btn:disabled { opacity: 1; cursor: default; pointer-events: none; }
 
-    /* Insane Mode */
+    /* --- SLIDER STYLES (NEW) --- */
     .insane-inputs {
-        display: flex; flex-direction: column; gap: 15px; text-align: left;
+        display: flex; flex-direction: column; gap: 20px; text-align: left;
         width: 100%; max-width: 400px;
     }
-    .insane-inputs label { font-size: 0.9rem; font-weight: bold; color: #555; margin-bottom: 5px; }
-    .insane-inputs input {
-        width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 8px;
-        font-size: 1.1rem; font-weight: bold; box-sizing: border-box;
+    .slider-group {
+        background: var(--card-bg);
+        border: 2px solid var(--border);
+        border-radius: var(--radius);
+        padding: 15px;
     }
+    .slider-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 12px;
+    }
+    .slider-label { font-weight: bold; color: var(--text-light); font-size: 0.9rem; text-transform: uppercase; }
+    .slider-value { font-weight: 900; font-size: 1.2rem; color: var(--primary); }
+    
+    input[type=range] {
+        width: 100%; -webkit-appearance: none; background: transparent; cursor: pointer;
+    }
+    input[type=range]:focus { outline: none; }
+    
+    /* Slider Track */
+    input[type=range]::-webkit-slider-runnable-track {
+        width: 100%; height: 10px; background: #e0e0e0; border-radius: 5px;
+    }
+    /* Slider Thumb */
+    input[type=range]::-webkit-slider-thumb {
+        height: 28px; width: 28px; border-radius: 50%;
+        background: var(--primary); border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        -webkit-appearance: none; margin-top: -9px; transition: transform 0.1s;
+    }
+    input[type=range]:active::-webkit-slider-thumb { transform: scale(1.1); }
 
     /* --- BOTTOM SHEET --- */
     .bottom-sheet {
@@ -170,6 +195,7 @@
     }
     .action-btn:active { transform: translateY(4px); box-shadow: none; }
     .action-btn.danger { background: var(--danger); box-shadow: 0 4px 0 var(--danger-dark); }
+    .action-btn:disabled { background: #ccc; box-shadow: none; cursor: default; transform: none; }
 
     /* --- MODAL --- */
     .modal-overlay {
@@ -239,12 +265,27 @@
 
     <div id="options-container" class="options-grid"></div>
 
-    <!-- Virtuoso/Insane Mode -->
+    <!-- Virtuoso/Insane Mode (SLIDERS) -->
     <div id="virtuoso-container" style="display:none; width:100%; max-width:400px;">
         <div id="insane-inputs" class="insane-inputs">
-            <label>Speed (Hz): <input type="number" id="input-rate" step="0.1" placeholder="4.0 - 7.0"></label>
-            <label>Amplitude (cents): <input type="number" id="input-depth" step="1" placeholder="11 - 44"></label>
-            <button id="submit-insane" class="action-btn" style="width:100%; margin-top:10px;">Submit Answer</button>
+            
+            <div class="slider-group">
+                <div class="slider-header">
+                    <span class="slider-label">Speed</span>
+                    <span id="rate-display" class="slider-value">4.0 Hz</span>
+                </div>
+                <input type="range" id="input-rate" min="4.0" max="7.0" step="0.1" value="4.0">
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-header">
+                    <span class="slider-label">Width</span>
+                    <span id="depth-display" class="slider-value">11 cents</span>
+                </div>
+                <input type="range" id="input-depth" min="11" max="44" step="1" value="11">
+            </div>
+
+            <button id="submit-insane" class="action-btn">Submit Answer</button>
         </div>
     </div>
 </div>
@@ -268,7 +309,7 @@
 
 <script>
 /* =========================================
-   AUDIO ENGINE (STANDARD)
+   AUDIO ENGINE
    ========================================= */
 const workletCode = `
 class VibratoProcessor extends AudioWorkletProcessor {
@@ -343,6 +384,7 @@ function createMetronomePath() {
 }
 
 function scheduleClick(time) {
+    if (!isPlaying) return;
     createMetronomePath();
     const clickOsc = audioContext.createOscillator();
     const clickGain = audioContext.createGain();
@@ -356,7 +398,7 @@ function scheduleClick(time) {
 function startMetronomeLoop(startTime) {
     const interval = 60 / METRO_BPM; let nextClickTime = startTime; 
     function scheduler() {
-        if (!isPlaying) return;
+        if (!isPlaying || !isMetronomeOn) return;
         while (nextClickTime < audioContext.currentTime + 0.1) {
             scheduleClick(nextClickTime); nextClickTime += interval;
         }
@@ -373,35 +415,44 @@ function playTone(rate, depth) {
         if (vibratoNode) { try { vibratoNode.disconnect(); } catch(e){} }
         if (gainNode) { try { gainNode.disconnect(); } catch(e){} }
         cleanupMetronome();
+
         vibratoNode = new AudioWorkletNode(audioContext, 'vibrato-processor');
         gainNode = audioContext.createGain();
         vibratoNode.connect(gainNode); gainNode.connect(audioContext.destination);
+        
         const params = vibratoNode.parameters;
         params.get('baseFrequency').setValueAtTime(442, audioContext.currentTime);
         params.get('rate').setValueAtTime(rate, audioContext.currentTime);
         params.get('depth').setValueAtTime(depth, audioContext.currentTime);
+        
         const now = audioContext.currentTime; const startTime = now + SYNC_DELAY; 
         vibratoNode.port.postMessage({ startTime: startTime });
+        
         gainNode.gain.setValueAtTime(0, startTime);
         gainNode.gain.linearRampToValueAtTime(NOTE_GAIN, startTime + FADE_TIME);
+        
         isPlaying = true; updatePlayButton();
         if (isMetronomeOn) startMetronomeLoop(startTime);
     });
 }
 
 function stopTone() {
-    if (!isPlaying) return;
     cleanupMetronome();
+    if (!isPlaying) return;
     if (gainNode) {
-        const now = audioContext.currentTime;
-        gainNode.gain.cancelScheduledValues(now);
-        gainNode.gain.setValueAtTime(gainNode.gain.value, now);
-        gainNode.gain.linearRampToValueAtTime(0, now + FADE_TIME);
+        try {
+            const now = audioContext.currentTime;
+            gainNode.gain.cancelScheduledValues(now);
+            gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+            gainNode.gain.linearRampToValueAtTime(0, now + FADE_TIME);
+        } catch(e) {}
     }
     setTimeout(() => {
-        if (vibratoNode) { vibratoNode.disconnect(); vibratoNode = null; }
-        isPlaying = false; updatePlayButton();
-    }, (FADE_TIME * 1000) + 100);
+        if (vibratoNode) { try { vibratoNode.disconnect(); } catch(e){} vibratoNode = null; }
+        if (gainNode) { try { gainNode.disconnect(); } catch(e){} gainNode = null; }
+        isPlaying = false; 
+        updatePlayButton();
+    }, (FADE_TIME * 1000) + 50);
 }
 
 function updatePlayButton() {
@@ -419,6 +470,18 @@ function updatePlayButton() {
     }
 }
 
+// Background Handling
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        stopTone();
+        cleanupMetronome();
+        particles = [];
+        if (audioContext && audioContext.state === 'running') audioContext.suspend();
+    } else {
+        if (audioContext && audioContext.state === 'suspended') audioContext.resume();
+    }
+});
+
 /* =========================================
    GAME STATE
    ========================================= */
@@ -426,11 +489,10 @@ const LEVELS = [
     { id: 'slow-fast', title: "Slow vs Fast", desc: "Speed Training", icon: '⚡', type: 'rate' },
     { id: 'narrow-wide', title: "Narrow vs Wide", desc: "Width Training", icon: '🎚️', type: 'depth' },
     { id: 'mix', title: "Vibrato Mixer", desc: "Combined Training", icon: '🎵', type: 'mix' },
-    { id: 'insane', title: "Virtuoso", desc: "Type your answer", icon: '🎻', type: 'insane' }
+    { id: 'insane', title: "Virtuoso", desc: "Slider Challenge", icon: '🎻', type: 'insane' }
 ];
 
 const MAX_HEARTS = 5;
-// REDUCED HISTORY LENGTH: Matches the "Other Version" logic for better variety
 const HISTORY_LENGTH = 3; 
 
 let state = {
@@ -453,7 +515,7 @@ let state = {
 };
 
 try {
-    const saved = localStorage.getItem('vm_best_scores_new');
+    const saved = localStorage.getItem('vm_best_scores_pro');
     if (saved) state.bestScores = JSON.parse(saved);
 } catch(e){}
 
@@ -487,15 +549,9 @@ function initGame(modeId) {
     state.history = [];
     state.streak = 0;
     
-    // Reset specific mode scores
-    if (state.modeState[modeId]) {
-        state.modeState[modeId].currentScore = 0;
-    }
+    if (state.modeState[modeId]) state.modeState[modeId].currentScore = 0;
     
-    // Show reset button for non-insane modes
-    document.getElementById('reset-btn').style.display = 
-        state.currentMode.type === 'insane' ? 'none' : 'inline-block';
-    
+    document.getElementById('reset-btn').style.display = state.currentMode.type === 'insane' ? 'none' : 'inline-block';
     document.querySelectorAll('.view-container').forEach(e => e.classList.remove('active'));
     document.getElementById('game-view').classList.add('active');
     
@@ -508,9 +564,13 @@ function initGame(modeId) {
     document.getElementById('streak-display').style.display = 'none';
     document.getElementById('heart-val').innerText = MAX_HEARTS;
     
+    const submitBtn = document.getElementById('submit-insane');
+    if (submitBtn) submitBtn.disabled = false;
+    
     if (isInsane) {
         state.insaneTotalScore = 0;
         state.insaneRound = 0;
+        resetSliders();
     }
     
     updateUI();
@@ -520,6 +580,15 @@ function initGame(modeId) {
 function resetCurrentMode() {
     if (!state.currentMode || state.currentMode.type === 'insane') return;
     initGame(state.currentMode.id);
+}
+
+function resetSliders() {
+    // Reset inputs to Minimum values to avoid bias
+    document.getElementById('input-rate').value = 4.0;
+    document.getElementById('input-depth').value = 11;
+    // Update labels
+    document.getElementById('rate-display').innerText = "4.0 Hz";
+    document.getElementById('depth-display').innerText = "11 cents";
 }
 
 function nextRound() {
@@ -534,7 +603,6 @@ function nextRound() {
         document.getElementById('insane-total').innerText = `Total: ${state.insaneTotalScore}`;
     }
     
-    // NEW GENERATION LOGIC APPLIED HERE
     state.target = generateTarget(state.currentMode.type);
     
     state.history.push({...state.target});
@@ -544,60 +612,40 @@ function nextRound() {
         const options = generateOptions(state.target, state.currentMode.type);
         renderOptions(options);
     } else {
-        document.getElementById('input-rate').value = '';
-        document.getElementById('input-depth').value = '';
+        // Reset Sliders every round to prevent anchoring bias
+        resetSliders();
+        document.getElementById('submit-insane').disabled = false;
     }
 }
 
-// =========================================
-//  UPDATED LOGIC: TARGET GENERATION
-//  (Pure Random + Buffer)
-// =========================================
 function generateTarget(type) {
     let rate, depth;
     const MAX_ATTEMPTS = 150; 
     
     for (let attempts = 0; attempts < MAX_ATTEMPTS; attempts++) {
-        // 1. Pure Randomness (No difficulty curve)
         rate = 4.0 + Math.random() * (7.0 - 4.0);
         depth = 11 + Math.random() * (44 - 11);
-        
-        // Round to clean numbers
         rate = parseFloat(rate.toFixed(1));
         depth = Math.floor(depth);
         
-        // 2. Mode Parameter Locking
-        if (type === 'rate') depth = 25;   // Locked for speed mode
-        if (type === 'depth') rate = 5.5;  // Locked for width mode
+        if (type === 'rate') depth = 25;
+        if (type === 'depth') rate = 5.5;
 
-        // 3. The "Anti-Boredom" History Check
-        // Ensures new target is distinct from recent ones
         const isTooSimilar = state.history.some(h => {
             const rateDiff = Math.abs(rate - h.rate);
             const depthDiff = Math.abs(depth - h.depth);
-            
-            if (type === 'insane' || type === 'mix') {
-                // Reject if BOTH are too close
-                return rateDiff < 1.0 && depthDiff < 10;
-            }
-            
+            if (type === 'insane' || type === 'mix') return rateDiff < 1.0 && depthDiff < 10;
             if (type === 'rate') return rateDiff < 1.0;
             if (type === 'depth') return depthDiff < 10;
-            
             return false;
         });
-        
         if (!isTooSimilar) break;
     }
-    
     return { rate, depth };
 }
 
-// Updated Option Generation to match new target logic style
 function generateOptions(target, type) {
-    const numOptions = 3; // Keep it simple and consistent
-    
-    // Deviations (Wide gaps to distinguish clearly)
+    const numOptions = 3; 
     const rateDev = type === 'depth' ? 0 : 1.5;
     const depthDev = type === 'rate' ? 0 : 15;
     
@@ -609,27 +657,20 @@ function generateOptions(target, type) {
         while (attempts < 50) {
             attempts++;
             let r = target.rate, d = target.depth;
-            
             const dir = Math.random() > 0.5 ? 1 : -1;
             
             if (rateDev > 0) {
-                // Random deviation between 0.5 * Dev and 1.5 * Dev
                 r = target.rate + (dir * rateDev * (0.5 + Math.random()));
                 r = Math.max(4.0, Math.min(7.0, r));
                 r = parseFloat(r.toFixed(1));
             }
-            
             if (depthDev > 0) {
                 d = target.depth + (dir * depthDev * (0.5 + Math.random()));
                 d = Math.floor(Math.max(11, Math.min(44, d)));
             }
             
-            // Check if too close to target or other options
             const key = `${r}-${d}`;
-            const closeToExisting = options.some(o => 
-                Math.abs(o.rate - r) < 0.5 && Math.abs(o.depth - d) < 5
-            );
-
+            const closeToExisting = options.some(o => Math.abs(o.rate - r) < 0.5 && Math.abs(o.depth - d) < 5);
             if (!used.has(key) && !closeToExisting) {
                 opt = { rate: r, depth: d };
                 used.add(key);
@@ -638,7 +679,6 @@ function generateOptions(target, type) {
         }
         if (opt) options.push(opt);
     }
-    
     return options.sort(() => Math.random() - 0.5);
 }
 
@@ -654,11 +694,7 @@ function renderOptions(options) {
     });
 }
 
-/* =========================================
-   GAME LOGIC & SCORING
-   ========================================= */
 function handleAnswer(choice, btn) {
-    // Exact match check for multiple choice (rare due to floats, but possible with options)
     const isCorrect = choice.rate === state.target.rate && choice.depth === state.target.depth;
     processResult(isCorrect, btn);
 }
@@ -667,11 +703,6 @@ function handleInsaneSubmit() {
     const rateInput = document.getElementById('input-rate');
     const depthInput = document.getElementById('input-depth');
     
-    if (!rateInput.value || !depthInput.value) {
-        alert("Please enter both Speed and Amplitude values.");
-        return;
-    }
-
     const userRate = parseFloat(rateInput.value);
     const userDepth = parseFloat(depthInput.value);
     
@@ -685,7 +716,6 @@ function handleInsaneSubmit() {
     state.insaneTotalScore += pts;
     state.insaneRound++;
     
-    // Create score breakdown message
     const rateDiff = Math.abs(userRate - state.target.rate).toFixed(1);
     const depthDiff = Math.abs(userDepth - state.target.depth);
     const msg = `
@@ -710,26 +740,13 @@ function handleInsaneSubmit() {
     }
 }
 
-// =========================================
-//  UPDATED LOGIC: SCORING (LINEAR)
-// =========================================
 function calculateScore(userRate, userDepth) {
-    // 1. Calculate simple distance
     const rateDiff = Math.abs(userRate - state.target.rate);
     const depthDiff = Math.abs(userDepth - state.target.depth);
-
-    // 2. Rate Scoring (Max 50)
-    // -5 points per 0.1 Hz off
     let rateScore = 50 - (rateDiff * 50);
-
-    // 3. Depth Scoring (Max 50)
-    // -2.5 points per 1 cent off
     let depthScore = 50 - (depthDiff * 2.5);
-
-    // 4. Clamping
     if (rateScore < 0) rateScore = 0;
     if (depthScore < 0) depthScore = 0;
-
     return Math.round(rateScore + depthScore);
 }
 
@@ -755,7 +772,6 @@ function processResult(isCorrect, btn, msg) {
         btnEl.innerText = "Next Round";
         btnEl.className = "action-btn";
         btnEl.onclick = checkLevelProgression;
-        
         state.streak++;
         if (state.streak > 2) {
             const streakEl = document.getElementById('streak-display');
@@ -766,25 +782,21 @@ function processResult(isCorrect, btn, msg) {
         playSfx('lose');
         if (navigator.vibrate) navigator.vibrate(200);
         if (btn) btn.classList.add('wrong');
-        
         state.hearts--;
         document.getElementById('heart-val').innerText = state.hearts;
         state.streak = 0;
         document.getElementById('streak-display').style.display = 'none';
-        
         title.innerText = "Not quite";
         message.innerHTML = msg || `Correct: <strong>${state.target.rate}Hz / ${state.target.depth}c</strong>`;
         btnEl.innerText = "Continue";
         btnEl.className = "action-btn";
         btnEl.onclick = checkLevelProgression;
-        
         if (state.hearts <= 0) {
             btnEl.innerText = "Game Over";
             btnEl.className = 'action-btn danger';
             btnEl.onclick = () => triggerGameOver("Out of Hearts");
         }
     }
-    
     sheet.className = 'bottom-sheet visible ' + (isCorrect ? 'correct' : 'wrong');
 }
 
@@ -823,6 +835,8 @@ function showMultiplayerSwitch() {
         sheet.classList.remove('visible');
         state.activePlayer = 2;
         updateUI();
+        // Reset sliders for Player 2
+        resetSliders();
         setTimeout(() => playTone(state.target.rate, state.target.depth), 300);
     };
     sheet.className = 'bottom-sheet visible';
@@ -845,7 +859,6 @@ function showMultiplayerResult(p1Score, p2Score) {
         </div>
         <p>Target: ${state.target.rate}Hz / ${state.target.depth}c</p>
     `;
-    
     processResult(true, null, msg);
     state.p1Guess = null; state.activePlayer = 1;
 }
@@ -854,13 +867,8 @@ function checkLevelProgression() {
     document.getElementById('feedback-sheet').classList.remove('visible');
     document.querySelectorAll('.game-btn').forEach(b => b.classList.remove('correct', 'wrong'));
     document.getElementById('submit-insane').disabled = false;
-    
     state.batchIndex++;
-    
-    if (state.currentMode.type !== 'insane') {
-        state.modeState[state.currentMode.id].currentScore++;
-    }
-    
+    if (state.currentMode.type !== 'insane') state.modeState[state.currentMode.id].currentScore++;
     setTimeout(() => playTone(state.target.rate, state.target.depth), 300);
     nextRound();
 }
@@ -868,20 +876,12 @@ function checkLevelProgression() {
 function triggerGameOver(reason) {
     stopTone();
     document.getElementById('feedback-sheet').classList.remove('visible');
-    
     const mode = state.currentMode.id;
-    let score;
-    if (state.currentMode.type === 'insane') {
-        score = state.insaneTotalScore;
-    } else {
-        score = state.modeState[mode].currentScore;
-    }
-    
+    let score = state.currentMode.type === 'insane' ? state.insaneTotalScore : state.modeState[mode].currentScore;
     if (score > (state.bestScores[mode] || 0)) {
         state.bestScores[mode] = score;
-        localStorage.setItem('vm_best_scores_new', JSON.stringify(state.bestScores));
+        localStorage.setItem('vm_best_scores_pro', JSON.stringify(state.bestScores));
     }
-
     let msg, icon;
     if (state.currentMode.type === 'insane') {
         msg = `Final Score: ${state.insaneTotalScore}/500<br>Best: ${Math.max(state.insaneTotalScore, state.bestScores[mode] || 0)}`;
@@ -890,7 +890,6 @@ function triggerGameOver(reason) {
         msg = `Score: ${score}<br>Best: ${Math.max(score, state.bestScores[mode] || 0)}`;
         icon = reason === "Out of Hearts" ? "💀" : "🏆";
     }
-
     showModal(reason, msg, "Main Menu", goHome, icon);
 }
 
@@ -920,8 +919,8 @@ function updateUI() {
 }
 
 function playSfx(type) {
+    if (audioContext && audioContext.state === 'suspended') audioContext.resume();
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
     const o = ctx.createOscillator(); const g = ctx.createGain();
     o.connect(g).connect(ctx.destination);
     const t = ctx.currentTime;
@@ -940,16 +939,11 @@ function playSfx(type) {
     }
 }
 
-/* =========================================
-   VISUAL EFFECTS
-   ========================================= */
 const canvas = document.getElementById('effects-canvas');
 const ctx = canvas.getContext('2d');
 let particles = [];
-
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 window.addEventListener('resize', resize); resize();
-
 function fireConfetti() {
     for (let i = 0; i < 60; i++) {
         particles.push({
@@ -959,9 +953,8 @@ function fireConfetti() {
             gravity: 0.3
         });
     }
-    if (!particles.length) loop();
+    if (particles.length <= 60) loop();
 }
-
 function loop() {
     if (!particles.length) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -971,12 +964,10 @@ function loop() {
         ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size);
         if (p.y > canvas.height + 50) particles.splice(i, 1);
     }
-    requestAnimationFrame(loop);
+    if (particles.length > 0) requestAnimationFrame(loop);
 }
 
-/* =========================================
-   INIT
-   ========================================= */
+// SLIDER LISTENERS
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('listen-btn').addEventListener('click', () => {
         if (document.getElementById('listen-btn').classList.contains('disabled')) return;
@@ -998,9 +989,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('submit-insane').addEventListener('click', handleInsaneSubmit);
     
+    // SLIDER UPDATES
+    document.getElementById('input-rate').addEventListener('input', (e) => {
+        document.getElementById('rate-display').innerText = parseFloat(e.target.value).toFixed(1) + " Hz";
+    });
+    document.getElementById('input-depth').addEventListener('input', (e) => {
+        document.getElementById('depth-display').innerText = e.target.value + " cents";
+    });
+
     renderHome();
 });
 </script>
-
 </body>
 </html>
