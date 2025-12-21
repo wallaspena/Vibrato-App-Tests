@@ -2,314 +2,274 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vibrato Ear Trainer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Vibrato Master - Hybrid Edition</title>
 <style>
     :root {
-        --bg: #f4f4f4;
+        --primary: #58cc02;
+        --primary-dark: #46a302;
+        --secondary: #1cb0f6;
+        --secondary-dark: #1899d6;
+        --danger: #ff4b4b;
+        --danger-dark: #d33131;
+        --warning: #ffc800;
+        --text: #3c3c3c;
+        --text-light: #777;
+        --bg: #ffffff;
         --card-bg: #ffffff;
-        --text: #333333;
-        --accent: #000000;
-        --success: #28a745;
-        --error: #dc3545;
-        --p1: #007bff;
-        --p2: #d63384;
-        --radius: 12px;
+        --border: #e5e5e5;
+        --radius: 16px;
+        --safe-top: env(safe-area-inset-top, 20px);
+        --safe-bottom: env(safe-area-inset-bottom, 20px);
+        --shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
+
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #131f24;
+            --card-bg: #202f36;
+            --text: #ffffff;
+            --text-light: #9faab0;
+            --border: #37464f;
+            --shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
 
     body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-family: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         background-color: var(--bg);
         color: var(--text);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-height: 100vh;
-        margin: 0;
-        padding: 20px;
-        box-sizing: border-box;
-        overflow-x: hidden;
+        margin: 0; padding: 0; height: 100vh; overflow: hidden;
+        display: flex; flex-direction: column;
     }
 
-    /* Confetti Canvas */
-    #effects-canvas {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        z-index: 999;
-    }
+    #effects-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999; }
 
-    .game-container {
+    /* --- HEADER --- */
+    .app-header {
+        height: calc(60px + var(--safe-top));
+        padding-top: var(--safe-top);
         background: var(--card-bg);
-        padding: 30px;
-        border-radius: var(--radius);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-        width: 100%;
-        max-width: 400px;
-        text-align: center;
-        position: relative;
-        overflow: hidden;
-        transition: border-color 0.2s;
-        border: 2px solid transparent;
+        border-bottom: 2px solid var(--border);
+        display: flex; align-items: center; justify-content: space-between;
+        padding-left: 20px; padding-right: 20px;
+        z-index: 10; flex-shrink: 0;
     }
 
-    /* Wrong Answer Shake Animation */
-    @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-        20%, 40%, 60%, 80% { transform: translateX(5px); }
+    .stat-badge { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.1rem; }
+    .heart-icon { color: var(--danger); fill: currentColor; animation: pulse 2s infinite; }
+    .streak-badge { background: var(--warning); color: #8a6d00; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; display: none; }
+    .running-score { font-size: 1.2rem; font-weight: 800; color: var(--primary); display: none; }
+
+    /* --- VIEWS --- */
+    .view-container {
+        flex: 1; overflow-y: auto; padding: 20px;
+        padding-bottom: calc(var(--safe-bottom) + 100px);
+        display: none; flex-direction: column; align-items: center;
     }
-    
-    .shake-effect {
-        animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-        border-color: var(--error) !important;
+    .view-container.active { display: flex; }
+
+    /* --- HOME --- */
+    .level-list { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 15px; }
+    .level-card {
+        background: var(--card-bg); border: 2px solid var(--border); border-radius: var(--radius);
+        padding: 15px; display: flex; align-items: center; gap: 15px;
+        transition: transform 0.1s, box-shadow 0.2s; cursor: pointer; position: relative;
+        box-shadow: var(--shadow);
+    }
+    .level-card:active { transform: scale(0.98); }
+    .level-icon {
+        width: 50px; height: 50px; background: var(--secondary); border-radius: 50%;
+        display: flex; align-items: center; justify-content: center; color: white;
+        font-size: 1.2rem; box-shadow: 0 4px 0 var(--secondary-dark);
+    }
+    .score-badge {
+        position: absolute; right: 15px; top: 15px;
+        background: var(--warning); color: #8a6d00;
+        font-size: 0.75rem; font-weight: 800; padding: 4px 8px; border-radius: 10px;
     }
 
-    h1 { margin: 0 0 10px 0; font-size: 1.5rem; letter-spacing: -0.5px; }
-    h2 { margin: 0 0 20px 0; font-size: 1rem; color: #666; font-weight: normal; }
-
-    .stats-bar {
-        display: flex;
-        justify-content: space-between;
+    /* --- GAME --- */
+    .game-top-row {
+        width: 100%; max-width: 500px; display: flex; justify-content: space-between; align-items: center;
         margin-bottom: 20px;
-        font-size: 0.9rem;
-        font-weight: bold;
-        color: #888;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 10px;
     }
-    
-    .stats-bar.multi { color: var(--text); }
-
-    .play-section {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 15px;
-        margin-bottom: 25px;
+    .quit-btn {
+        background: none; border: 2px solid var(--border); border-radius: 12px;
+        padding: 5px 12px; color: var(--text-light); font-weight: bold; cursor: pointer;
     }
-
-    .listen-btn {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
-        background: var(--accent);
+    .reset-btn {
+        background: var(--danger);
         border: none;
+        border-radius: 12px;
+        padding: 5px 12px;
         color: white;
-        font-size: 1.5rem;
+        font-weight: bold;
         cursor: pointer;
-        transition: transform 0.1s, background-color 0.2s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-    }
-    
-    .listen-btn:active { transform: scale(0.95); }
-    .listen-btn.playing { background-color: #444; }
-
-    .toggle-row { display: flex; gap: 10px; justify-content: center; }
-
-    .metro-toggle, .multi-toggle {
-        background: none; border: 1px solid #ddd; padding: 6px 12px;
-        border-radius: 20px; font-size: 0.8rem; cursor: pointer; color: #777; transition: all 0.2s;
+        margin-left: 10px;
     }
 
-    .metro-toggle.active, .multi-toggle.active {
-        background-color: #e0e0e0; color: #000; border-color: #999; font-weight: bold;
+    .listen-circle {
+        width: 120px; height: 120px; border-radius: 50%;
+        background: var(--secondary); box-shadow: 0 6px 0 var(--secondary-dark);
+        display: flex; align-items: center; justify-content: center;
+        color: white; cursor: pointer; transition: transform 0.1s;
+        margin-bottom: 30px; position: relative;
     }
-    
-    .multi-toggle.active {
-        background-color: var(--text); color: white; border-color: var(--text);
+    .listen-circle:active { transform: translateY(6px); box-shadow: none; margin-bottom: 36px; }
+    .listen-circle.playing { background: var(--text); box-shadow: 0 6px 0 #222; }
+
+    .toggle-row { display: flex; gap: 10px; margin-bottom: 20px; }
+    .metro-toggle {
+        background: var(--border); border: none; padding: 8px 16px;
+        border-radius: 20px; font-size: 0.8rem; cursor: pointer; font-weight: bold;
     }
+    .metro-toggle.active { background: var(--primary); color: white; }
 
-    .icon { width: 30px; height: 30px; fill: white; }
-
-    .options-grid {
-        display: grid;
-        gap: 10px;
-        margin-bottom: 20px;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 400px; }
+    .game-btn {
+        background: var(--card-bg); border: 2px solid var(--border); border-bottom-width: 4px;
+        border-radius: var(--radius); padding: 20px;
+        font-size: 1.1rem; font-weight: 700; color: var(--text);
+        text-align: center; cursor: pointer; transition: all 0.1s;
     }
+    .game-btn:active { transform: translateY(2px); border-bottom-width: 2px; }
+    .game-btn.correct { background: #d7ffb8; border-color: var(--primary); color: var(--primary-dark); }
+    .game-btn.wrong { background: #ffdfe0; border-color: var(--danger); color: var(--danger-dark); }
+    .game-btn:disabled { opacity: 1; cursor: default; pointer-events: none; }
 
+    /* Insane Mode */
     .insane-inputs {
         display: flex; flex-direction: column; gap: 15px; text-align: left;
+        width: 100%; max-width: 400px;
     }
-    .insane-inputs label { font-size: 0.9rem; font-weight: bold; color: #555; }
+    .insane-inputs label { font-size: 0.9rem; font-weight: bold; color: #555; margin-bottom: 5px; }
     .insane-inputs input {
-        width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px;
-        font-size: 1rem; box-sizing: border-box; margin-top: 5px;
-    }
-    
-    .turn-indicator {
-        font-weight: bold; margin-bottom: 10px; display: block;
-        text-transform: uppercase; font-size: 0.85rem; letter-spacing: 1px;
-    }
-    .p1-turn { color: var(--p1); }
-    .p2-turn { color: var(--p2); }
-
-    .option-btn {
-        background: white; border: 2px solid #eee; padding: 15px;
-        border-radius: 8px; font-size: 1rem; cursor: pointer; transition: all 0.2s; font-weight: 500;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-    }
-    .option-btn:hover { border-color: #ccc; }
-    .option-btn:active { background-color: #f9f9f9; }
-    .option-btn span { font-size: 0.85rem; color: #666; margin-top: 4px; }
-
-    .controls { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
-
-    select, .action-btn {
-        padding: 10px 15px; border-radius: 6px; border: 1px solid #ccc;
-        background: white; font-size: 0.9rem; cursor: pointer;
-    }
-    .action-btn { background: var(--accent); color: white; border: none; }
-
-    /* Modal Overlay */
-    .overlay {
-        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(255,255,255,0.98);
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        opacity: 0; pointer-events: none; transition: opacity 0.3s; padding: 20px; z-index: 10;
-    }
-    .overlay.visible { opacity: 1; pointer-events: all; }
-    .overlay h3 { font-size: 2rem; margin: 0 0 10px 0; }
-    .overlay p { font-size: 1.1rem; color: #555; margin-bottom: 20px; }
-    
-    .overlay .btn-next {
-        background: var(--accent); color: white; border: none;
-        padding: 12px 30px; font-size: 1rem; border-radius: 25px; cursor: pointer;
+        width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 8px;
+        font-size: 1.1rem; font-weight: bold; box-sizing: border-box;
     }
 
-    .overlay.pass-device { background: var(--text); }
-    .overlay.pass-device h3 { color: white; }
-    .overlay.pass-device p { color: #ccc; }
-    .overlay.pass-device .btn-next { background: white; color: black; }
-
-    .mp-results-grid {
-        display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; margin-bottom: 20px;
+    /* --- BOTTOM SHEET --- */
+    .bottom-sheet {
+        position: fixed; bottom: 0; left: 0; width: 100%;
+        background: var(--card-bg); border-top: 2px solid var(--border);
+        padding: 25px; padding-bottom: max(25px, var(--safe-bottom));
+        transform: translateY(110%); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        z-index: 100;
     }
-    .mp-card {
-        background: #f9f9f9; padding: 10px; border-radius: 8px; font-size: 0.9rem;
+    .bottom-sheet.visible { transform: translateY(0); }
+    .bottom-sheet.correct { border-top-color: var(--primary); }
+    .bottom-sheet.wrong { border-top-color: var(--danger); }
+
+    .action-btn {
+        width: 100%; padding: 16px; border-radius: var(--radius); border: none;
+        font-size: 1.1rem; font-weight: 800; text-transform: uppercase; color: white;
+        background: var(--primary); box-shadow: 0 4px 0 var(--primary-dark); cursor: pointer;
     }
-    .mp-card.winner { border: 2px solid #ffd700; background: #fffbe6; }
-    .mp-score-text { font-size: 1.2rem; font-weight: bold; display: block; margin-top: 5px; }
+    .action-btn:active { transform: translateY(4px); box-shadow: none; }
+    .action-btn.danger { background: var(--danger); box-shadow: 0 4px 0 var(--danger-dark); }
 
-    .high-scores {
-        margin-top: 30px; font-size: 0.85rem; color: #777; text-align: left; width: 100%; max-width: 400px;
+    /* --- MODAL --- */
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 200;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        backdrop-filter: blur(5px);
     }
-    .high-scores-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
-    .reset-btn { font-size: 0.7rem; padding: 2px 8px; background: transparent; border: 1px solid #ccc; color: #999; border-radius: 4px; cursor: pointer; }
-    .reset-btn:hover { color: var(--error); border-color: var(--error); }
-    .high-scores ol { padding-left: 20px; }
+    .modal-overlay.visible { opacity: 1; pointer-events: all; }
+    .modal-card {
+        background: var(--card-bg); width: 90%; max-width: 350px; padding: 30px;
+        border-radius: var(--radius); text-align: center;
+        transform: scale(0.9); transition: transform 0.2s;
+    }
+    .modal-overlay.visible .modal-card { transform: scale(1); }
 
-    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-    .new-record { color: #d63384; animation: pulse 1s infinite; font-weight: bold; display: block; margin-top: 10px; }
-
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
 </style>
 </head>
 <body>
 
-<!-- Effects Canvas -->
 <canvas id="effects-canvas"></canvas>
 
-<div class="game-container" id="game-card">
-    <h1>Vibrato Quiz</h1>
-    <h2 id="difficulty-label">Difficulty: Medium</h2>
-
-    <div class="stats-bar" id="stats-bar">
-        <span id="round-display">Round: 1/5</span>
-        <span id="score-display">Score: 0</span>
+<!-- Header -->
+<div class="app-header">
+    <div class="stat-badge" onclick="goHome()">
+        <span>🎻 VibratoMaster</span>
     </div>
-
-    <div class="play-section">
-        <button id="listen-btn" class="listen-btn" aria-label="Play Sound">
-            <svg id="icon-play" class="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            <svg id="icon-stop" class="icon" viewBox="0 0 24 24" style="display:none"><path d="M6 6h12v12H6z"/></svg>
-        </button>
-        
-        <div class="toggle-row">
-            <button id="metro-toggle" class="metro-toggle">Metronome: Off</button>
-            <button id="multi-toggle" class="multi-toggle">1P / 2P</button>
+    <div style="display:flex; gap:15px; align-items:center">
+        <div class="streak-badge" id="streak-display" style="display:none;">🔥 0</div>
+        <div class="stat-badge" id="hearts-display">
+            <svg class="heart-icon" width="24" height="24" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            <span id="heart-val">5</span>
         </div>
-        
-        <div style="font-size: 0.8rem; color: #999; margin-top: 5px;">(A4 Note)</div>
+        <div class="running-score" id="insane-total" style="display:none;">Total: 0</div>
     </div>
+</div>
+
+<!-- HOME -->
+<div id="home-view" class="view-container active">
+    <div class="level-list" id="level-list"></div>
+</div>
+
+<!-- GAME -->
+<div id="game-view" class="view-container">
+    <div class="game-top-row">
+        <button class="quit-btn" onclick="triggerGameOver('Quit')">✕ Quit</button>
+        <button class="reset-btn" id="reset-btn" onclick="resetCurrentMode()">Reset</button>
+        <div style="text-align:right">
+            <div style="font-weight:bold; font-size:0.9rem" id="batch-display">Random</div>
+            <div style="font-size:0.8rem; color:var(--text-light)" id="score-display">Score: 0</div>
+        </div>
+    </div>
+
+    <div class="listen-circle" id="listen-btn">
+        <svg id="icon-play" width="50" height="50" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="icon-stop" width="50" height="50" viewBox="0 0 24 24" fill="white" style="display:none"><path d="M6 6h12v12H6z"/></svg>
+    </div>
+
+    <div class="toggle-row">
+        <button class="metro-toggle" id="metro-toggle">Metronome: Off</button>
+        <button class="metro-toggle" id="multi-toggle" style="display:none;">1 Player</button>
+    </div>
+
+    <div style="font-size:0.9rem; color:var(--text-light); margin-bottom:20px;">Reference: A4 (442Hz)</div>
 
     <div id="options-container" class="options-grid"></div>
 
-    <div class="controls">
-        <select id="difficulty-select">
-            <option value="easy">Easy (2 Options)</option>
-            <option value="medium" selected>Medium (3 Options)</option>
-            <option value="hard">Hard (5 Options)</option>
-            <option value="insane">Insane (Typing)</option>
-        </select>
-        <button id="restart-btn" class="action-btn">Restart Game</button>
-    </div>
-
-    <!-- Feedback Overlay -->
-    <div id="feedback-overlay" class="overlay">
-        <h3 id="feedback-title">Correct!</h3>
-        <div id="feedback-content"></div>
-        <button id="next-round-btn" class="btn-next">Next Round</button>
+    <!-- Virtuoso/Insane Mode -->
+    <div id="virtuoso-container" style="display:none; width:100%; max-width:400px;">
+        <div id="insane-inputs" class="insane-inputs">
+            <label>Speed (Hz): <input type="number" id="input-rate" step="0.1" placeholder="4.0 - 7.0"></label>
+            <label>Amplitude (cents): <input type="number" id="input-depth" step="1" placeholder="11 - 44"></label>
+            <button id="submit-insane" class="action-btn" style="width:100%; margin-top:10px;">Submit Answer</button>
+        </div>
     </div>
 </div>
 
-<div class="high-scores" id="hs-container">
-    <div class="high-scores-header">
-        <strong id="highscore-title">Top 3 High Scores:</strong>
-        <button id="reset-score-btn" class="reset-btn">Reset</button>
+<!-- FEEDBACK -->
+<div id="feedback-sheet" class="bottom-sheet">
+    <h2 id="sheet-title" style="margin:0 0 10px 0;"></h2>
+    <div id="sheet-msg" style="margin:0 0 20px 0; font-size:1rem;"></div>
+    <button id="sheet-btn" class="action-btn">Continue</button>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="modal-overlay">
+    <div class="modal-card">
+        <div id="modal-icon" style="font-size:3rem; margin-bottom:10px;">🏆</div>
+        <h2 id="modal-title" style="margin-top:0;"></h2>
+        <p id="modal-msg" style="color:var(--text-light); margin-bottom:20px;"></p>
+        <button id="modal-btn" class="action-btn"></button>
     </div>
-    <ol id="highscore-list"></ol>
 </div>
 
 <script>
-// --- VISUAL EFFECTS ENGINE ---
-const canvas = document.getElementById('effects-canvas');
-const ctx = canvas.getContext('2d');
-let particles = [];
-let animationFrame;
-
-function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-
-function fireConfetti() {
-    for (let i = 0; i < 100; i++) {
-        particles.push({
-            x: window.innerWidth / 2, y: window.innerHeight / 2,
-            vx: (Math.random() - 0.5) * 20, vy: (Math.random() - 0.5) * 20, 
-            size: Math.random() * 8 + 4, color: `hsl(${Math.random() * 360}, 100%, 50%)`,
-            gravity: 0.1, rotation: Math.random() * 360, rotationSpeed: (Math.random() - 0.5) * 10
-        });
-    }
-    if (!animationFrame) loopEffects();
-}
-
-function triggerShake() {
-    const card = document.getElementById('game-card');
-    card.classList.remove('shake-effect');
-    void card.offsetWidth; card.classList.add('shake-effect');
-}
-
-function loopEffects() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let i = particles.length - 1; i >= 0; i--) {
-        let p = particles[i];
-        p.vy += p.gravity; p.x += p.vx; p.y += p.vy; p.rotation += p.rotationSpeed;
-        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rotation * Math.PI / 180);
-        ctx.fillStyle = p.color; ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size); ctx.restore();
-        if (p.y > window.innerHeight + 50 || p.y < -50 || p.x > window.innerWidth + 50 || p.x < -50) particles.splice(i, 1);
-    }
-    if (particles.length > 0) animationFrame = requestAnimationFrame(loopEffects); else animationFrame = null;
-}
-
-// --- AUDIO ENGINE ---
+/* =========================================
+   AUDIO ENGINE (STANDARD)
+   ========================================= */
 const workletCode = `
 class VibratoProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
@@ -345,12 +305,11 @@ class VibratoProcessor extends AudioWorkletProcessor {
       this.previousInstantaneousFreq = targetInstantaneousFreq;
       if (this.carrierPhase >= 1.0) this.carrierPhase -= 1.0;
       
-      // MODIFIED: Softer, vocal-like harmonic series
       let val = 0;
-      val += Math.sin(this.carrierPhase * twoPi);               // Fundamental
-      val += 0.25 * Math.sin(2 * this.carrierPhase * twoPi);    // 2nd harmonic (gentle)
-      val += 0.1 * Math.sin(3 * this.carrierPhase * twoPi);     // 3rd harmonic (subtle)
-      outputChannel[i] = val * 0.74; // Normalize
+      val += Math.sin(this.carrierPhase * twoPi);
+      val += 0.25 * Math.sin(2 * this.carrierPhase * twoPi);
+      val += 0.1 * Math.sin(3 * this.carrierPhase * twoPi);
+      outputChannel[i] = val * 0.74;
       
       this.lfoPhase += currentRate * inverseSampleRate;
       if (this.lfoPhase >= 1.0) this.lfoPhase -= 1.0;
@@ -365,45 +324,6 @@ let audioContext = null; let vibratoNode = null; let gainNode = null; let metron
 let isPlaying = false; let isMetronomeOn = false; let metronomeInterval = null;
 const NOTE_GAIN = 0.60; const CLICK_GAIN = 0.25; const FADE_TIME = 0.05; const SYNC_DELAY = 0.1; const METRO_BPM = 60;
 
-// --- GAME STATE ---
-const MAX_ROUNDS = 5;
-let currentRound = 1; let currentScore = 0; let currentDifficulty = 'medium';
-let targetValues = { rate: 0, depth: 0 };
-let targetHistory = []; // Array to store last N targets
-const HISTORY_LENGTH = 3; // Remember last 3 rounds
-let currentOptions = []; let gameState = 'waiting'; 
-let isMultiplayer = false; let activePlayer = 1; let p1Score = 0; let p2Score = 0; let p1Guess = null; 
-
-const defaultScores = { easy: [0,0,0], medium: [0,0,0], hard: [0,0,0], insane: [0,0,0] };
-let highScores = defaultScores;
-try {
-    const saved = localStorage.getItem('vibratoHighScores');
-    if (saved) { highScores = JSON.parse(saved); if (!highScores.insane) highScores.insane = [0,0,0]; }
-} catch (e) { highScores = defaultScores; }
-
-// --- DOM ---
-const listenBtn = document.getElementById('listen-btn');
-const metroToggle = document.getElementById('metro-toggle');
-const multiToggle = document.getElementById('multi-toggle');
-const iconPlay = document.getElementById('icon-play');
-const iconStop = document.getElementById('icon-stop');
-const optionsContainer = document.getElementById('options-container');
-const roundDisplay = document.getElementById('round-display');
-const scoreDisplay = document.getElementById('score-display');
-const difficultySelect = document.getElementById('difficulty-select');
-const difficultyLabel = document.getElementById('difficulty-label');
-const restartBtn = document.getElementById('restart-btn');
-const resetScoreBtn = document.getElementById('reset-score-btn');
-const overlay = document.getElementById('feedback-overlay');
-const feedbackTitle = document.getElementById('feedback-title');
-const feedbackContent = document.getElementById('feedback-content');
-const nextRoundBtn = document.getElementById('next-round-btn');
-const highscoreList = document.getElementById('highscore-list');
-const highscoreTitle = document.getElementById('highscore-title');
-const hsContainer = document.getElementById('hs-container');
-const statsBar = document.getElementById('stats-bar');
-
-// --- LOGIC ---
 async function initAudio() {
     if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -447,8 +367,8 @@ function startMetronomeLoop(startTime) {
 
 function cleanupMetronome() { clearTimeout(metronomeInterval); metronomeInterval = null; }
 
-function playSound() {
-    if (isPlaying) { stopSound(); return; }
+function playTone(rate, depth) {
+    if (isPlaying) { stopTone(); return; }
     initAudio().then(() => {
         if (vibratoNode) { try { vibratoNode.disconnect(); } catch(e){} }
         if (gainNode) { try { gainNode.disconnect(); } catch(e){} }
@@ -458,18 +378,18 @@ function playSound() {
         vibratoNode.connect(gainNode); gainNode.connect(audioContext.destination);
         const params = vibratoNode.parameters;
         params.get('baseFrequency').setValueAtTime(442, audioContext.currentTime);
-        params.get('rate').setValueAtTime(targetValues.rate, audioContext.currentTime);
-        params.get('depth').setValueAtTime(targetValues.depth, audioContext.currentTime);
+        params.get('rate').setValueAtTime(rate, audioContext.currentTime);
+        params.get('depth').setValueAtTime(depth, audioContext.currentTime);
         const now = audioContext.currentTime; const startTime = now + SYNC_DELAY; 
         vibratoNode.port.postMessage({ startTime: startTime });
         gainNode.gain.setValueAtTime(0, startTime);
         gainNode.gain.linearRampToValueAtTime(NOTE_GAIN, startTime + FADE_TIME);
-        isPlaying = true; updatePlayButtonState();
+        isPlaying = true; updatePlayButton();
         if (isMetronomeOn) startMetronomeLoop(startTime);
     });
 }
 
-function stopSound() {
+function stopTone() {
     if (!isPlaying) return;
     cleanupMetronome();
     if (gainNode) {
@@ -480,414 +400,607 @@ function stopSound() {
     }
     setTimeout(() => {
         if (vibratoNode) { vibratoNode.disconnect(); vibratoNode = null; }
-        isPlaying = false; updatePlayButtonState();
+        isPlaying = false; updatePlayButton();
     }, (FADE_TIME * 1000) + 100);
 }
 
-function updatePlayButtonState() {
+function updatePlayButton() {
+    const btn = document.getElementById('listen-btn');
+    const playIcon = document.getElementById('icon-play');
+    const stopIcon = document.getElementById('icon-stop');
     if (isPlaying) {
-        listenBtn.classList.add('playing'); iconPlay.style.display = 'none'; iconStop.style.display = 'block';
+        btn.classList.add('playing');
+        playIcon.style.display = 'none';
+        stopIcon.style.display = 'block';
     } else {
-        listenBtn.classList.remove('playing'); iconPlay.style.display = 'block'; iconStop.style.display = 'none';
+        btn.classList.remove('playing');
+        playIcon.style.display = 'block';
+        stopIcon.style.display = 'none';
     }
 }
 
-function updateHighScoresDisplay() {
-    if (isMultiplayer) { hsContainer.style.display = 'none'; return; }
-    hsContainer.style.display = 'block';
-    const diff = difficultySelect.value; const scores = highScores[diff] || [0,0,0];
-    const diffName = diff.charAt(0).toUpperCase() + diff.slice(1);
-    highscoreTitle.textContent = `Top 3 High Scores (${diffName}):`;
-    highscoreList.innerHTML = scores.map(score => `<li>${score} pts</li>`).join('');
+/* =========================================
+   GAME STATE
+   ========================================= */
+const LEVELS = [
+    { id: 'slow-fast', title: "Slow vs Fast", desc: "Speed Training", icon: '⚡', type: 'rate' },
+    { id: 'narrow-wide', title: "Narrow vs Wide", desc: "Width Training", icon: '🎚️', type: 'depth' },
+    { id: 'mix', title: "Vibrato Mixer", desc: "Combined Training", icon: '🎵', type: 'mix' },
+    { id: 'insane', title: "Virtuoso", desc: "Type your answer", icon: '🎻', type: 'insane' }
+];
+
+const MAX_HEARTS = 5;
+// REDUCED HISTORY LENGTH: Matches the "Other Version" logic for better variety
+const HISTORY_LENGTH = 3; 
+
+let state = {
+    currentMode: null,
+    hearts: MAX_HEARTS,
+    batchIndex: 0,
+    target: { rate: 0, depth: 0 },
+    history: [],
+    isMultiplayer: false,
+    p1Guess: null,
+    insaneTotalScore: 0,
+    insaneRound: 0,
+    bestScores: {},
+    streak: 0,
+    modeState: {
+        'slow-fast': { currentScore: 0 },
+        'narrow-wide': { currentScore: 0 },
+        'mix': { currentScore: 0 }
+    }
+};
+
+try {
+    const saved = localStorage.getItem('vm_best_scores_new');
+    if (saved) state.bestScores = JSON.parse(saved);
+} catch(e){}
+
+/* =========================================
+   LEVEL SYSTEM
+   ========================================= */
+function renderHome() {
+    const list = document.getElementById('level-list');
+    list.innerHTML = '';
+    LEVELS.forEach(lvl => {
+        const best = state.bestScores[lvl.id] || 0;
+        const div = document.createElement('div');
+        div.className = 'level-card';
+        div.onclick = () => initGame(lvl.id);
+        div.innerHTML = `
+            <div class="level-icon">${lvl.icon}</div>
+            <div>
+                <div style="font-weight:bold; font-size:1.1rem">${lvl.title}</div>
+                <div style="font-size:0.85rem; color:var(--text-light)">${lvl.desc}</div>
+            </div>
+            <div class="score-badge">Best: ${best}</div>
+        `;
+        list.appendChild(div);
+    });
 }
 
-function getRandom(min, max, decimals = 0) {
-    const val = Math.random() * (max - min) + min;
-    return parseFloat(val.toFixed(decimals));
+function initGame(modeId) {
+    state.currentMode = LEVELS.find(l => l.id === modeId);
+    state.hearts = MAX_HEARTS;
+    state.p1Guess = null;
+    state.history = [];
+    state.streak = 0;
+    
+    // Reset specific mode scores
+    if (state.modeState[modeId]) {
+        state.modeState[modeId].currentScore = 0;
+    }
+    
+    // Show reset button for non-insane modes
+    document.getElementById('reset-btn').style.display = 
+        state.currentMode.type === 'insane' ? 'none' : 'inline-block';
+    
+    document.querySelectorAll('.view-container').forEach(e => e.classList.remove('active'));
+    document.getElementById('game-view').classList.add('active');
+    
+    const isInsane = state.currentMode.type === 'insane';
+    document.getElementById('options-container').style.display = isInsane ? 'none' : 'grid';
+    document.getElementById('virtuoso-container').style.display = isInsane ? 'block' : 'none';
+    document.getElementById('multi-toggle').style.display = isInsane ? 'inline-block' : 'none';
+    document.getElementById('hearts-display').style.display = isInsane ? 'none' : 'flex';
+    document.getElementById('insane-total').style.display = isInsane ? 'block' : 'none';
+    document.getElementById('streak-display').style.display = 'none';
+    document.getElementById('heart-val').innerText = MAX_HEARTS;
+    
+    if (isInsane) {
+        state.insaneTotalScore = 0;
+        state.insaneRound = 0;
+    }
+    
+    updateUI();
+    nextRound();
 }
 
-// MODIFIED: Extended history buffer to prevent oscillation patterns
-function generateTarget() {
+function resetCurrentMode() {
+    if (!state.currentMode || state.currentMode.type === 'insane') return;
+    initGame(state.currentMode.id);
+}
+
+function nextRound() {
+    stopTone();
+    document.getElementById('listen-btn').classList.remove('disabled');
+    document.getElementById('feedback-sheet').classList.remove('visible');
+    
+    const roundNum = state.currentMode.type === 'insane' ? state.insaneRound + 1 : state.batchIndex + 1;
+    document.getElementById('score-display').innerText = `Round: ${roundNum}`;
+    
+    if (state.currentMode.type === 'insane') {
+        document.getElementById('insane-total').innerText = `Total: ${state.insaneTotalScore}`;
+    }
+    
+    // NEW GENERATION LOGIC APPLIED HERE
+    state.target = generateTarget(state.currentMode.type);
+    
+    state.history.push({...state.target});
+    if (state.history.length > HISTORY_LENGTH) state.history.shift();
+    
+    if (state.currentMode.type !== 'insane') {
+        const options = generateOptions(state.target, state.currentMode.type);
+        renderOptions(options);
+    } else {
+        document.getElementById('input-rate').value = '';
+        document.getElementById('input-depth').value = '';
+    }
+}
+
+// =========================================
+//  UPDATED LOGIC: TARGET GENERATION
+//  (Pure Random + Buffer)
+// =========================================
+function generateTarget(type) {
     let rate, depth;
-    const MAX_ATTEMPTS = 150;
+    const MAX_ATTEMPTS = 150; 
     
     for (let attempts = 0; attempts < MAX_ATTEMPTS; attempts++) {
-        rate = getRandom(4, 7, 1);
-        depth = getRandom(11, 44, 0);
+        // 1. Pure Randomness (No difficulty curve)
+        rate = 4.0 + Math.random() * (7.0 - 4.0);
+        depth = 11 + Math.random() * (44 - 11);
         
-        // Check against ALL recent targets in history
-        const isTooSimilar = targetHistory.some(historyTarget => {
-            const rateDiff = Math.abs(rate - historyTarget.rate);
-            const depthDiff = Math.abs(depth - historyTarget.depth);
-            return rateDiff < 1.0 && depthDiff < 10; // Too close to ANY recent target
+        // Round to clean numbers
+        rate = parseFloat(rate.toFixed(1));
+        depth = Math.floor(depth);
+        
+        // 2. Mode Parameter Locking
+        if (type === 'rate') depth = 25;   // Locked for speed mode
+        if (type === 'depth') rate = 5.5;  // Locked for width mode
+
+        // 3. The "Anti-Boredom" History Check
+        // Ensures new target is distinct from recent ones
+        const isTooSimilar = state.history.some(h => {
+            const rateDiff = Math.abs(rate - h.rate);
+            const depthDiff = Math.abs(depth - h.depth);
+            
+            if (type === 'insane' || type === 'mix') {
+                // Reject if BOTH are too close
+                return rateDiff < 1.0 && depthDiff < 10;
+            }
+            
+            if (type === 'rate') return rateDiff < 1.0;
+            if (type === 'depth') return depthDiff < 10;
+            
+            return false;
         });
         
-        if (!isTooSimilar) break; // Found a good target
-    }
-    
-    // Update history (keep only last N entries)
-    targetHistory.push({ rate, depth });
-    if (targetHistory.length > HISTORY_LENGTH) {
-        targetHistory.shift(); // Remove oldest entry
+        if (!isTooSimilar) break;
     }
     
     return { rate, depth };
 }
 
-// MODIFIED: More aggressive difficulty scaling and minimum separation constraints
-function generateOptions(target, difficulty) {
-    if (difficulty === 'insane') return [];
+// Updated Option Generation to match new target logic style
+function generateOptions(target, type) {
+    const numOptions = 3; // Keep it simple and consistent
     
-    // More pronounced deviation settings with minimum separation
-    const difficultySettings = {
-        easy:   { numOptions: 2, rateDev: 4.0, depthDev: 35, minRateSep: 1.5, minDepthSep: 15 },
-        medium: { numOptions: 3, rateDev: 2.0, depthDev: 20, minRateSep: 0.8, minDepthSep: 8 },
-        hard:   { numOptions: 5, rateDev: 1.0, depthDev: 10, minRateSep: 0.4, minDepthSep: 4 }
-    };
+    // Deviations (Wide gaps to distinguish clearly)
+    const rateDev = type === 'depth' ? 0 : 1.5;
+    const depthDev = type === 'rate' ? 0 : 15;
     
-    const settings = difficultySettings[difficulty] || difficultySettings.medium;
-    const opts = [target];
-    const usedRates = new Set([target.rate.toFixed(1)]);
-    const usedDepths = new Set([target.depth.toString()]);
-    const usedPairs = new Set([`${target.rate.toFixed(1)}-${target.depth}`]);
-
-    // Generate distractors
-    for (let i = 0; i < settings.numOptions - 1; i++) {
-        let newOpt; 
-        let valid = false; 
-        let attempts = 0;
-        
-        while (!valid && attempts < 75) {
+    const options = [target];
+    const used = new Set([`${target.rate}-${target.depth}`]);
+    
+    for (let i = 0; i < numOptions - 1; i++) {
+        let opt, attempts = 0;
+        while (attempts < 50) {
             attempts++;
+            let r = target.rate, d = target.depth;
             
-            // Simpler, more predictable generation
-            const direction = Math.random() > 0.5 ? 1 : -1;
-            const useFullDev = Math.random() > 0.3; // 70% chance of full deviation
-            const rateMagnitude = useFullDev ? settings.rateDev : (settings.rateDev * 0.6);
-            const depthMagnitude = useFullDev ? settings.depthDev : (settings.depthDev * 0.6);
+            const dir = Math.random() > 0.5 ? 1 : -1;
             
-            // Simpler jitter
-            const rateJitter = (Math.random() - 0.5) * 0.4; // ±0.2
-            const depthJitter = Math.floor(Math.random() * 5) - 2; // ±2
-
-            let r = target.rate + (rateMagnitude + rateJitter) * direction;
-            let d = target.depth + (depthMagnitude + depthJitter) * direction;
-            
-            r = Math.max(4, Math.min(7, r));
-            d = Math.max(11, Math.min(44, d));
-            r = parseFloat(r.toFixed(1));
-
-            const rateKey = r.toFixed(1);
-            const depthKey = d.toString();
-            const pairKey = `${rateKey}-${depthKey}`;
-            
-            // Check uniqueness
-            const isRateUnique = !usedRates.has(rateKey);
-            const isDepthUnique = !usedDepths.has(depthKey);
-            const isPairUnique = !usedPairs.has(pairKey);
-            const tooCloseToTarget = Math.abs(r - target.rate) < 0.1 && Math.abs(d - target.depth) < 2;
-            
-            // Check minimum separation from existing options
-            let tooCloseToOthers = false;
-            for (const opt of opts) {
-                if (Math.abs(r - opt.rate) < settings.minRateSep && Math.abs(d - opt.depth) < settings.minDepthSep) {
-                    tooCloseToOthers = true;
-                    break;
-                }
+            if (rateDev > 0) {
+                // Random deviation between 0.5 * Dev and 1.5 * Dev
+                r = target.rate + (dir * rateDev * (0.5 + Math.random()));
+                r = Math.max(4.0, Math.min(7.0, r));
+                r = parseFloat(r.toFixed(1));
             }
             
-            if (isRateUnique && isDepthUnique && isPairUnique && !tooCloseToTarget && !tooCloseToOthers) {
-                valid = true;
-                usedRates.add(rateKey);
-                usedDepths.add(depthKey);
-                usedPairs.add(pairKey);
-                newOpt = { rate: r, depth: d };
+            if (depthDev > 0) {
+                d = target.depth + (dir * depthDev * (0.5 + Math.random()));
+                d = Math.floor(Math.max(11, Math.min(44, d)));
+            }
+            
+            // Check if too close to target or other options
+            const key = `${r}-${d}`;
+            const closeToExisting = options.some(o => 
+                Math.abs(o.rate - r) < 0.5 && Math.abs(o.depth - d) < 5
+            );
+
+            if (!used.has(key) && !closeToExisting) {
+                opt = { rate: r, depth: d };
+                used.add(key);
+                break;
             }
         }
-        
-        // Improved fallback: if we failed, still respect difficulty
-        if (!valid) {
-            const fallbackAttempts = 50;
-            for (let j = 0; j < fallbackAttempts; j++) {
-                const direction = Math.random() > 0.5 ? 1 : -1;
-                const r = parseFloat((target.rate + direction * settings.rateDev * (0.5 + Math.random() * 0.5)).toFixed(1));
-                const d = Math.round(target.depth + direction * settings.depthDev * (0.5 + Math.random() * 0.5));
-                
-                if (r >= 4 && r <= 7 && d >= 11 && d <= 44) {
-                    const rateKey = r.toFixed(1);
-                    const depthKey = d.toString();
-                    if (!usedPairs.has(`${rateKey}-${depthKey}`)) {
-                        newOpt = { rate: r, depth: d };
-                        usedRates.add(rateKey);
-                        usedDepths.add(depthKey);
-                        usedPairs.add(`${rateKey}-${depthKey}`);
-                        break;
-                    }
-                }
-            }
-        }
-        
-        if (newOpt) opts.push(newOpt);
+        if (opt) options.push(opt);
     }
     
-    return opts.sort(() => Math.random() - 0.5);
+    return options.sort(() => Math.random() - 0.5);
 }
 
-function startRound() {
-    stopSound();
-    document.getElementById('game-card').classList.remove('shake-effect');
-    
-    gameState = 'playing';
-    
-    // Multiplayer: Only generate new target on Player 1's turn (both hear same target)
-    if (!isMultiplayer || (isMultiplayer && activePlayer === 1)) {
-        targetValues = generateTarget();
-        currentOptions = generateOptions(targetValues, currentDifficulty);
-    }
-
-    roundDisplay.textContent = `Round: ${currentRound}/${MAX_ROUNDS}`;
-    
-    if (isMultiplayer) {
-        statsBar.classList.add('multi');
-        scoreDisplay.innerHTML = `<span style="color:var(--p1)">P1: ${p1Score}</span> | <span style="color:var(--p2)">P2: ${p2Score}</span>`;
-    } else {
-        statsBar.classList.remove('multi');
-        scoreDisplay.textContent = `Score: ${currentScore}`;
-    }
-    
-    renderUI();
+function renderOptions(options) {
+    const container = document.getElementById('options-container');
+    container.innerHTML = '';
+    options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'game-btn';
+        btn.innerHTML = `<strong>${opt.rate} Hz</strong><br><small>${opt.depth} cents</small>`;
+        btn.onclick = () => handleAnswer(opt, btn);
+        container.appendChild(btn);
+    });
 }
 
-function renderUI() {
-    optionsContainer.innerHTML = '';
-
-    if (currentDifficulty === 'insane') {
-        const insaneDiv = document.createElement('div');
-        insaneDiv.className = 'insane-inputs';
-        let turnHtml = ''; let btnText = 'Submit Answer';
-        
-        if (isMultiplayer) {
-            if (activePlayer === 1) {
-                turnHtml = `<span class="turn-indicator p1-turn">Player 1's Turn</span>`;
-                btnText = 'Submit (Player 1)';
-            } else {
-                turnHtml = `<span class="turn-indicator p2-turn">Player 2's Turn</span>`;
-                btnText = 'Submit (Player 2)';
-            }
-        }
-
-        insaneDiv.innerHTML = `
-            ${turnHtml}
-            <label>Speed (Hz): <input type="number" id="input-rate" step="0.1" placeholder="4.0 - 7.0"></label>
-            <label>Amplitude (cents): <input type="number" id="input-depth" step="1" placeholder="11 - 44"></label>
-            <button id="submit-insane" class="action-btn" style="width:100%; margin-top:10px; background-color: var(--accent);">${btnText}</button>
-        `;
-        optionsContainer.appendChild(insaneDiv);
-        document.getElementById('submit-insane').addEventListener('click', handleInsaneGuess);
-    } else {
-        optionsContainer.className = 'options-grid';
-        currentOptions.forEach((opt) => {
-            const btn = document.createElement('button');
-            btn.className = 'option-btn';
-            btn.innerHTML = `<strong>${opt.rate}</strong> Hz <br> <span><strong>${opt.depth}</strong> cents</span>`;
-            btn.onclick = () => handleStandardGuess(opt);
-            optionsContainer.appendChild(btn);
-        });
-    }
+/* =========================================
+   GAME LOGIC & SCORING
+   ========================================= */
+function handleAnswer(choice, btn) {
+    // Exact match check for multiple choice (rare due to floats, but possible with options)
+    const isCorrect = choice.rate === state.target.rate && choice.depth === state.target.depth;
+    processResult(isCorrect, btn);
 }
 
-function handleStandardGuess(selectedOption) {
-    stopSound();
-    const isCorrect = (selectedOption.rate === targetValues.rate && selectedOption.depth === targetValues.depth);
-    overlay.classList.remove('gameover', 'correct', 'wrong', 'pass-device');
-    overlay.className = 'overlay visible';
-
-    if (isCorrect) {
-        fireConfetti();
-        overlay.classList.add('correct');
-        feedbackTitle.textContent = "Correct!";
-        let points = 10;
-        if (currentDifficulty === 'medium') points = 20;
-        if (currentDifficulty === 'hard') points = 30;
-        currentScore += points;
-        feedbackContent.innerHTML = `<p>Perfect pitch perception!</p>`;
-    } else {
-        triggerShake();
-        overlay.classList.add('wrong');
-        feedbackTitle.textContent = "Wrong Answer";
-        feedbackContent.innerHTML = `<p>Correct: <strong>${targetValues.rate} Hz / ${targetValues.depth} cents</strong></p>`;
-    }
-    scoreDisplay.textContent = `Score: ${currentScore}`;
-    setupNextStep();
-}
-
-// MODIFIED: Linear scoring for both rate and depth
-function calculateScore(userRate, userDepth) {
-    // Rate: Linear penalty (50% error = 0 points)
-    const rateDiff = Math.abs(userRate - targetValues.rate);
-    const rateErrorPct = rateDiff / targetValues.rate;
-    let rateScore = 50 * (1 - rateErrorPct * 2);
-    if (rateScore < 0) rateScore = 0;
-    if (userRate === targetValues.rate) rateScore = 50;
-
-    // Depth: Linear penalty (50% error = 0 points)
-    const depthDiff = Math.abs(userDepth - targetValues.depth);
-    const depthErrorPct = depthDiff / targetValues.depth;
-    let depthScore = 50 * (1 - depthErrorPct * 2);
-    if (depthScore < 0) depthScore = 0;
-    if (userDepth === targetValues.depth) depthScore = 50;
-
-    return Math.round(rateScore + depthScore);
-}
-
-function handleInsaneGuess() {
-    stopSound();
+function handleInsaneSubmit() {
     const rateInput = document.getElementById('input-rate');
     const depthInput = document.getElementById('input-depth');
-    if (!rateInput.value || !depthInput.value) { alert("Please enter both Speed and Amplitude values."); return; }
+    
+    if (!rateInput.value || !depthInput.value) {
+        alert("Please enter both Speed and Amplitude values.");
+        return;
+    }
 
     const userRate = parseFloat(rateInput.value);
     const userDepth = parseFloat(depthInput.value);
     
-    if (isMultiplayer) {
-        if (activePlayer === 1) {
-            p1Guess = { rate: userRate, depth: userDepth };
-            overlay.classList.remove('gameover', 'correct', 'wrong');
-            overlay.classList.add('visible', 'pass-device');
-            feedbackTitle.textContent = "Switch Players";
-            feedbackContent.innerHTML = "<p>Pass the device to <strong>Player 2</strong>.<br>Player 2 can listen again before guessing.</p>";
-            nextRoundBtn.textContent = "Player 2 Start";
-            activePlayer = 2; gameState = 'switch_turn'; return; 
-        } else {
-            const pts1 = calculateScore(p1Guess.rate, p1Guess.depth);
-            const pts2 = calculateScore(userRate, userDepth);
-            p1Score += pts1; p2Score += pts2;
-            let resultMsg = "";
-            if (pts1 > pts2) { resultMsg = "Player 1 Wins!"; if (pts1 >= 90) fireConfetti(); }
-            else if (pts2 > pts1) { resultMsg = "Player 2 Wins!"; if (pts2 >= 90) fireConfetti(); }
-            else { resultMsg = "It's a Tie!"; if (pts1 >= 90) fireConfetti(); }
-            
-            overlay.classList.remove('pass-device', 'gameover', 'correct', 'wrong');
-            overlay.className = 'overlay visible';
-            feedbackTitle.textContent = resultMsg;
-            feedbackContent.innerHTML = `
-                <div class="mp-results-grid">
-                    <div class="mp-card ${pts1 > pts2 ? 'winner' : ''}">
-                        <div style="color:var(--p1); font-weight:bold;">Player 1</div>
-                        <div>${p1Guess.rate}Hz / ${p1Guess.depth}c</div>
-                        <span class="mp-score-text">+${pts1} pts</span>
-                    </div>
-                    <div class="mp-card ${pts2 > pts1 ? 'winner' : ''}">
-                        <div style="color:var(--p2); font-weight:bold;">Player 2</div>
-                        <div>${userRate}Hz / ${userDepth}c</div>
-                        <span class="mp-score-text">+${pts2} pts</span>
-                    </div>
-                </div>
-                <p>Correct: <strong>${targetValues.rate}Hz / ${targetValues.depth}c</strong></p>
-            `;
-            activePlayer = 1; 
+    if (state.isMultiplayer && state.activePlayer === 1) {
+        state.p1Guess = { rate: userRate, depth: userDepth };
+        showMultiplayerSwitch();
+        return;
+    }
+    
+    const pts = calculateScore(userRate, userDepth);
+    state.insaneTotalScore += pts;
+    state.insaneRound++;
+    
+    // Create score breakdown message
+    const rateDiff = Math.abs(userRate - state.target.rate).toFixed(1);
+    const depthDiff = Math.abs(userDepth - state.target.depth);
+    const msg = `
+        <div style="text-align:center; font-size:2rem; font-weight:900; color:${pts>=90?'var(--primary)':'var(--secondary)'}; margin-bottom:10px;">
+            ${pts} Points
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.9rem; background:rgba(0,0,0,0.05); padding:10px; border-radius:8px;">
+            <div><strong>Target:</strong><br>${state.target.rate}Hz / ${state.target.depth}c</div>
+            <div><strong>You:</strong><br>${userRate}Hz / ${userDepth}c</div>
+        </div>
+        <div style="font-size:0.8rem; color:#777; margin-top:5px;">
+            Off by: ${rateDiff}Hz / ${depthDiff}c
+        </div>
+    `;
+    
+    if (state.isMultiplayer) {
+        const pts2 = calculateScore(userRate, userDepth);
+        const pts1 = calculateScore(state.p1Guess.rate, state.p1Guess.depth);
+        showMultiplayerResult(pts1, pts2);
+    } else {
+        processInsaneResult(msg);
+    }
+}
+
+// =========================================
+//  UPDATED LOGIC: SCORING (LINEAR)
+// =========================================
+function calculateScore(userRate, userDepth) {
+    // 1. Calculate simple distance
+    const rateDiff = Math.abs(userRate - state.target.rate);
+    const depthDiff = Math.abs(userDepth - state.target.depth);
+
+    // 2. Rate Scoring (Max 50)
+    // -5 points per 0.1 Hz off
+    let rateScore = 50 - (rateDiff * 50);
+
+    // 3. Depth Scoring (Max 50)
+    // -2.5 points per 1 cent off
+    let depthScore = 50 - (depthDiff * 2.5);
+
+    // 4. Clamping
+    if (rateScore < 0) rateScore = 0;
+    if (depthScore < 0) depthScore = 0;
+
+    return Math.round(rateScore + depthScore);
+}
+
+function processResult(isCorrect, btn, msg) {
+    stopTone();
+    document.getElementById('listen-btn').classList.add('disabled');
+    document.querySelectorAll('.game-btn').forEach(b => b.disabled = true);
+    
+    const sheet = document.getElementById('feedback-sheet');
+    const title = document.getElementById('sheet-title');
+    const message = document.getElementById('sheet-msg');
+    const btnEl = document.getElementById('sheet-btn');
+    
+    btnEl.disabled = false;
+    btnEl.style.display = 'block';
+    
+    if (isCorrect) {
+        playSfx('win');
+        fireConfetti();
+        if (btn) btn.classList.add('correct');
+        title.innerText = "Perfect!";
+        message.innerHTML = msg || "Excellent perception!";
+        btnEl.innerText = "Next Round";
+        btnEl.className = "action-btn";
+        btnEl.onclick = checkLevelProgression;
+        
+        state.streak++;
+        if (state.streak > 2) {
+            const streakEl = document.getElementById('streak-display');
+            streakEl.innerText = `🔥 ${state.streak}`;
+            streakEl.style.display = 'block';
         }
     } else {
-        const pts = calculateScore(userRate, userDepth);
-        currentScore += pts;
-        overlay.classList.remove('gameover', 'correct', 'wrong');
-        overlay.className = 'overlay visible';
-        if (pts >= 90) { fireConfetti(); overlay.classList.add('correct'); } else { overlay.classList.add('wrong'); }
-        feedbackTitle.textContent = pts === 100 ? "PERFECT!" : "Result";
-        feedbackContent.innerHTML = `<p>You earned <strong>${pts} points</strong>.</p><p>Target: ${targetValues.rate}Hz / ${targetValues.depth}c<br>You: ${userRate}Hz / ${userDepth}c</p>`;
-        scoreDisplay.textContent = `Score: ${currentScore}`;
+        playSfx('lose');
+        if (navigator.vibrate) navigator.vibrate(200);
+        if (btn) btn.classList.add('wrong');
+        
+        state.hearts--;
+        document.getElementById('heart-val').innerText = state.hearts;
+        state.streak = 0;
+        document.getElementById('streak-display').style.display = 'none';
+        
+        title.innerText = "Not quite";
+        message.innerHTML = msg || `Correct: <strong>${state.target.rate}Hz / ${state.target.depth}c</strong>`;
+        btnEl.innerText = "Continue";
+        btnEl.className = "action-btn";
+        btnEl.onclick = checkLevelProgression;
+        
+        if (state.hearts <= 0) {
+            btnEl.innerText = "Game Over";
+            btnEl.className = 'action-btn danger';
+            btnEl.onclick = () => triggerGameOver("Out of Hearts");
+        }
     }
-    setupNextStep();
+    
+    sheet.className = 'bottom-sheet visible ' + (isCorrect ? 'correct' : 'wrong');
 }
 
-function setupNextStep() {
-    if (currentRound >= MAX_ROUNDS) {
-        nextRoundBtn.textContent = "See Final Results";
-        gameState = 'results';
+function processInsaneResult(msg) {
+    stopTone();
+    document.getElementById('listen-btn').classList.add('disabled');
+    document.getElementById('submit-insane').disabled = true;
+    
+    const sheet = document.getElementById('feedback-sheet');
+    const title = document.getElementById('sheet-title');
+    const message = document.getElementById('sheet-msg');
+    const btnEl = document.getElementById('sheet-btn');
+    
+    playSfx('win');
+    if (state.insaneRound >= 5) {
+        title.innerText = "Session Complete!";
+        message.innerHTML = msg + `<br><strong>Total: ${state.insaneTotalScore}/500</strong>`;
+        btnEl.innerText = "See Final Results";
+        btnEl.onclick = () => triggerGameOver("5 Rounds Complete");
     } else {
-        nextRoundBtn.textContent = "Next Round";
-        gameState = 'feedback';
+        title.innerText = "Round Complete";
+        message.innerHTML = msg;
+        btnEl.innerText = "Next Round";
+        btnEl.onclick = checkLevelProgression;
     }
+    sheet.className = 'bottom-sheet visible correct';
 }
 
-function endGame() {
-    document.getElementById('game-card').classList.remove('shake-effect');
-    overlay.classList.remove('correct', 'wrong', 'pass-device');
-    overlay.classList.add('gameover');
-    feedbackTitle.textContent = "Game Over";
-    fireConfetti();
+function showMultiplayerSwitch() {
+    stopTone();
+    const sheet = document.getElementById('feedback-sheet');
+    document.getElementById('sheet-title').innerText = "Switch Players";
+    document.getElementById('sheet-msg').innerHTML = "<p>Pass to <strong>Player 2</strong>. They can listen again.</p>";
+    document.getElementById('sheet-btn').innerText = "Player 2 Start";
+    document.getElementById('sheet-btn').onclick = () => {
+        sheet.classList.remove('visible');
+        state.activePlayer = 2;
+        updateUI();
+        setTimeout(() => playTone(state.target.rate, state.target.depth), 300);
+    };
+    sheet.className = 'bottom-sheet visible';
+}
 
-    if (isMultiplayer) {
-        let winnerMsg = ""; let finalHtml = "";
-        if (p1Score > p2Score) { winnerMsg = "🏆 Player 1 is the Champion! 🏆"; finalHtml = `<p>Player 2 needs to practice more!</p>`; }
-        else if (p2Score > p1Score) { winnerMsg = "🏆 Player 2 is the Champion! 🏆"; finalHtml = `<p>Player 1 has been dethroned!</p>`; }
-        else { winnerMsg = "It's a Draw!"; finalHtml = `<p>Both ears are equally amazing!</p>`; }
-        feedbackTitle.textContent = winnerMsg;
-        feedbackContent.innerHTML = `
-            <h2 style="margin:0; font-size:3rem; color:var(--p1)">${p1Score}</h2><div style="font-size:0.8rem; margin-bottom:10px;">PLAYER 1</div>
-            <h2 style="margin:0; font-size:3rem; color:var(--p2)">${p2Score}</h2><div style="font-size:0.8rem; margin-bottom:20px;">PLAYER 2</div>${finalHtml}`;
+function showMultiplayerResult(p1Score, p2Score) {
+    const winner = p1Score > p2Score ? "Player 1 Wins!" : p2Score > p1Score ? "Player 2 Wins!" : "It's a Tie!";
+    if (Math.max(p1Score, p2Score) >= 90) fireConfetti();
+    
+    const msg = `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
+            <div style="padding:10px; background:rgba(0,0,0,0.05); border-radius:8px;">
+                <strong style="color:var(--secondary)">P1:</strong> ${state.p1Guess.rate}Hz / ${state.p1Guess.depth}c<br>
+                <strong>${p1Score} pts</strong>
+            </div>
+            <div style="padding:10px; background:rgba(0,0,0,0.05); border-radius:8px;">
+                <strong style="color:var(--danger)">P2:</strong> ${state.target.rate}Hz / ${state.target.depth}c<br>
+                <strong>${p2Score} pts</strong>
+            </div>
+        </div>
+        <p>Target: ${state.target.rate}Hz / ${state.target.depth}c</p>
+    `;
+    
+    processResult(true, null, msg);
+    state.p1Guess = null; state.activePlayer = 1;
+}
+
+function checkLevelProgression() {
+    document.getElementById('feedback-sheet').classList.remove('visible');
+    document.querySelectorAll('.game-btn').forEach(b => b.classList.remove('correct', 'wrong'));
+    document.getElementById('submit-insane').disabled = false;
+    
+    state.batchIndex++;
+    
+    if (state.currentMode.type !== 'insane') {
+        state.modeState[state.currentMode.id].currentScore++;
+    }
+    
+    setTimeout(() => playTone(state.target.rate, state.target.depth), 300);
+    nextRound();
+}
+
+function triggerGameOver(reason) {
+    stopTone();
+    document.getElementById('feedback-sheet').classList.remove('visible');
+    
+    const mode = state.currentMode.id;
+    let score;
+    if (state.currentMode.type === 'insane') {
+        score = state.insaneTotalScore;
     } else {
-        let msg = `<p>Final Score: ${currentScore}</p>`;
-        const levelScores = highScores[currentDifficulty];
-        levelScores.push(currentScore); levelScores.sort((a, b) => b - a);
-        highScores[currentDifficulty] = levelScores.slice(0, 3);
-        localStorage.setItem('vibratoHighScores', JSON.stringify(highScores));
-        if (currentScore > 0 && highScores[currentDifficulty].includes(currentScore)) msg += `<span class="new-record">🏆 TOP SCORE (${currentDifficulty.toUpperCase()})! 🏆</span>`;
-        feedbackContent.innerHTML = msg; updateHighScoresDisplay();
+        score = state.modeState[mode].currentScore;
     }
-    nextRoundBtn.textContent = "Play Again"; gameState = 'gameover';
-}
+    
+    if (score > (state.bestScores[mode] || 0)) {
+        state.bestScores[mode] = score;
+        localStorage.setItem('vm_best_scores_new', JSON.stringify(state.bestScores));
+    }
 
-function restartGame() {
-    currentRound = 1; currentScore = 0; p1Score = 0; p2Score = 0; activePlayer = 1;
-    targetHistory = []; // Clear history buffer on restart
-    if (isMultiplayer) {
-        difficultySelect.value = 'insane'; difficultySelect.disabled = true; 
-        difficultyLabel.textContent = "Mode: Multiplayer (Insane)";
+    let msg, icon;
+    if (state.currentMode.type === 'insane') {
+        msg = `Final Score: ${state.insaneTotalScore}/500<br>Best: ${Math.max(state.insaneTotalScore, state.bestScores[mode] || 0)}`;
+        icon = "🏆";
     } else {
-        difficultySelect.disabled = false;
-        currentDifficulty = difficultySelect.value;
-        const diffName = currentDifficulty.charAt(0).toUpperCase() + currentDifficulty.slice(1);
-        difficultyLabel.textContent = `Difficulty: ${diffName}`;
+        msg = `Score: ${score}<br>Best: ${Math.max(score, state.bestScores[mode] || 0)}`;
+        icon = reason === "Out of Hearts" ? "💀" : "🏆";
     }
-    currentDifficulty = difficultySelect.value;
-    updateHighScoresDisplay(); overlay.classList.remove('visible', 'gameover'); startRound();
+
+    showModal(reason, msg, "Main Menu", goHome, icon);
 }
 
-// RESET BUTTON LISTENER
-resetScoreBtn.addEventListener('click', () => {
-    const diff = difficultySelect.value;
-    const diffName = diff.charAt(0).toUpperCase() + diff.slice(1);
-    if (confirm(`Reset high scores for ${diffName} mode?`)) {
-        highScores[diff] = [0, 0, 0];
-        localStorage.setItem('vibratoHighScores', JSON.stringify(highScores));
-        updateHighScoresDisplay();
-    }
-});
+function showModal(title, msg, btnText, action, icon) {
+    document.getElementById('modal-icon').innerText = icon;
+    document.getElementById('modal-title').innerText = title;
+    document.getElementById('modal-msg').innerHTML = msg;
+    const btn = document.getElementById('modal-btn');
+    btn.innerText = btnText;
+    btn.onclick = action;
+    document.getElementById('modal-overlay').classList.add('visible');
+}
 
-listenBtn.addEventListener('click', () => { playSound(); });
-metroToggle.addEventListener('click', () => {
-    isMetronomeOn = !isMetronomeOn; metroToggle.classList.toggle('active', isMetronomeOn);
-    metroToggle.textContent = `Metronome: ${isMetronomeOn ? 'On' : 'Off'}`;
-    if (isPlaying) { stopSound(); setTimeout(playSound, 150); }
-});
-multiToggle.addEventListener('click', () => {
-    isMultiplayer = !isMultiplayer; multiToggle.classList.toggle('active', isMultiplayer);
-    multiToggle.textContent = `Multiplayer: ${isMultiplayer ? 'On' : 'Off'}`;
-    stopSound(); restartGame();
-});
-nextRoundBtn.addEventListener('click', () => {
-    if (gameState === 'results') endGame();
-    else if (gameState === 'gameover') restartGame();
-    else if (gameState === 'switch_turn') { overlay.classList.remove('visible', 'pass-device'); renderUI(); }
-    else if (gameState === 'feedback') {
-        if (currentRound < MAX_ROUNDS) { currentRound++; overlay.classList.remove('visible'); startRound(); }
-    }
-});
-restartBtn.addEventListener('click', () => { stopSound(); restartGame(); });
-difficultySelect.addEventListener('change', () => { stopSound(); restartGame(); });
+function goHome() {
+    document.getElementById('modal-overlay').classList.remove('visible');
+    document.querySelectorAll('.view-container').forEach(e => e.classList.remove('active'));
+    document.getElementById('home-view').classList.add('active');
+    renderHome();
+}
 
-updateHighScoresDisplay(); startRound();
+function updateUI() {
+    const isInsane = state.currentMode.type === 'insane';
+    document.getElementById('multi-toggle').style.display = isInsane ? 'inline-block' : 'none';
+    document.getElementById('insane-total').style.display = isInsane ? 'block' : 'none';
+    document.getElementById('hearts-display').style.display = isInsane ? 'none' : 'flex';
+    document.getElementById('multi-toggle').innerText = state.isMultiplayer ? '2 Players' : '1 Player';
+}
+
+function playSfx(type) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g).connect(ctx.destination);
+    const t = ctx.currentTime;
+    if (type === 'win') {
+        o.frequency.setValueAtTime(523.25, t);
+        o.frequency.setValueAtTime(659.25, t + 0.1);
+        o.frequency.setValueAtTime(783.99, t + 0.2);
+        g.gain.setValueAtTime(0.2, t);
+        g.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+        o.start(t); o.stop(t + 0.5);
+    } else {
+        o.type = 'sawtooth'; o.frequency.value = 150;
+        g.gain.setValueAtTime(0.1, t);
+        g.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+        o.start(t); o.stop(t + 0.2);
+    }
+}
+
+/* =========================================
+   VISUAL EFFECTS
+   ========================================= */
+const canvas = document.getElementById('effects-canvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize); resize();
+
+function fireConfetti() {
+    for (let i = 0; i < 60; i++) {
+        particles.push({
+            x: canvas.width / 2, y: canvas.height / 2,
+            vx: (Math.random() - 0.5) * 20, vy: (Math.random() - 1) * 20,
+            color: `hsl(${Math.random() * 360}, 100%, 50%)`, size: Math.random() * 8 + 4,
+            gravity: 0.3
+        });
+    }
+    if (!particles.length) loop();
+}
+
+function loop() {
+    if (!particles.length) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += p.gravity;
+        ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size);
+        if (p.y > canvas.height + 50) particles.splice(i, 1);
+    }
+    requestAnimationFrame(loop);
+}
+
+/* =========================================
+   INIT
+   ========================================= */
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('listen-btn').addEventListener('click', () => {
+        if (document.getElementById('listen-btn').classList.contains('disabled')) return;
+        if (isPlaying) stopTone(); else playTone(state.target.rate, state.target.depth);
+    });
+
+    document.getElementById('metro-toggle').addEventListener('click', () => {
+        isMetronomeOn = !isMetronomeOn;
+        const btn = document.getElementById('metro-toggle');
+        btn.classList.toggle('active', isMetronomeOn);
+        btn.innerText = `Metronome: ${isMetronomeOn ? 'On' : 'Off'}`;
+        if (isPlaying) { stopTone(); setTimeout(() => playTone(state.target.rate, state.target.depth), 150); }
+    });
+
+    document.getElementById('multi-toggle').addEventListener('click', () => {
+        state.isMultiplayer = !state.isMultiplayer;
+        updateUI();
+    });
+
+    document.getElementById('submit-insane').addEventListener('click', handleInsaneSubmit);
+    
+    renderHome();
+});
 </script>
+
 </body>
 </html>
