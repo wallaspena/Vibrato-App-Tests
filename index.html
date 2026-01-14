@@ -1,1013 +1,483 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Vibrato Master - Final</title>
-<style>
-    :root {
-        --primary: #58cc02;
-        --primary-dark: #46a302;
-        --secondary: #1cb0f6;
-        --secondary-dark: #1899d6;
-        --danger: #ff4b4b;
-        --danger-dark: #d33131;
-        --warning: #ffc800;
-        --text: #3c3c3c;
-        --text-light: #777;
-        --bg: #ffffff;
-        --card-bg: #ffffff;
-        --border: #e5e5e5;
-        --radius: 16px;
-        --safe-top: env(safe-area-inset-top, 20px);
-        --safe-bottom: env(safe-area-inset-bottom, 20px);
-        --shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-
-    @media (prefers-color-scheme: dark) {
-        :root {
-            --bg: #131f24;
-            --card-bg: #202f36;
-            --text: #ffffff;
-            --text-light: #9faab0;
-            --border: #37464f;
-            --shadow: 0 4px 12px rgba(0,0,0,0.3);
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Teleprompter</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column; /* Main layout: window, input, controls */
+            height: 100vh;
+            background-color: #f0f0f0;
+            color: #333;
+            --bg-color: #000000;
+            --text-color: #FFFFFF;
         }
-    }
 
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+        .teleprompter-window {
+            flex-grow: 1; /* Takes up most vertical space */
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            position: relative;
+            padding: 0 20px; /* Horizontal padding for vertical scroll */
+            box-sizing: border-box;
+            transition: transform 0.3s ease-in-out;
+        }
 
-    body {
-        font-family: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background-color: var(--bg);
-        color: var(--text);
-        margin: 0; padding: 0; height: 100vh; overflow: hidden;
-        display: flex; flex-direction: column;
-    }
+        .teleprompter-window.mirrored {
+            transform: scaleX(-1);
+        }
 
-    #effects-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999; }
+        #teleprompterText {
+            position: absolute;
+            font-size: 48px; /* Default, updated by JS */
+            line-height: 1.5;
+            top: 100%;
+            width: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            box-sizing: border-box;
+            white-space: pre-wrap;
+            text-align: center;
+        }
 
-    /* --- HEADER --- */
-    .app-header {
-        height: calc(60px + var(--safe-top));
-        padding-top: var(--safe-top);
-        background: var(--card-bg);
-        border-bottom: 2px solid var(--border);
-        display: flex; align-items: center; justify-content: space-between;
-        padding-left: 20px; padding-right: 20px;
-        z-index: 10; flex-shrink: 0;
-    }
+        .teleprompter-window.horizontal-mode #teleprompterText {
+            top: 0px;
+            left: 100%;
+            right: auto;
+            width: max-content !important;
+            white-space: nowrap !important;
+            text-align: left !important;
+            padding: 0;
+            transform: none !important;
+        }
+        .teleprompter-window.horizontal-mode {
+            padding: 0;
+        }
 
-    .stat-badge { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.1rem; cursor: pointer; }
-    .heart-icon { color: var(--danger); fill: currentColor; animation: pulse 2s infinite; }
-    .streak-badge { background: var(--warning); color: #8a6d00; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; display: none; }
-    .running-score { font-size: 1.2rem; font-weight: 800; color: var(--primary); display: none; }
+        #scriptInput {
+            width: calc(100% - 20px);
+            height: 80px;
+            margin: 10px 10px 5px 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+            flex-shrink: 0;
+            background-color: #fff;
+        }
 
-    /* --- VIEWS --- */
-    .view-container {
-        flex: 1; overflow-y: auto; padding: 20px;
-        padding-bottom: calc(var(--safe-bottom) + 100px);
-        display: none; flex-direction: column; align-items: center;
-    }
-    .view-container.active { display: flex; }
+        .controls {
+            padding: 10px 15px 15px 15px;
+            background-color: #e0e0e0;
+            border-top: 1px solid #ccc;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            flex-shrink: 0;
+        }
 
-    /* --- HOME --- */
-    .level-list { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 15px; }
-    .level-card {
-        background: var(--card-bg); border: 2px solid var(--border); border-radius: var(--radius);
-        padding: 15px; display: flex; align-items: center; gap: 15px;
-        transition: transform 0.1s, box-shadow 0.2s; cursor: pointer; position: relative;
-        box-shadow: var(--shadow);
-    }
-    .level-card:active { transform: scale(0.98); }
-    .level-icon {
-        width: 50px; height: 50px; background: var(--secondary); border-radius: 50%;
-        display: flex; align-items: center; justify-content: center; color: white;
-        font-size: 1.2rem; box-shadow: 0 4px 0 var(--secondary-dark);
-    }
-    .score-badge {
-        position: absolute; right: 15px; top: 15px;
-        background: var(--warning); color: #8a6d00;
-        font-size: 0.75rem; font-weight: 800; padding: 4px 8px; border-radius: 10px;
-    }
+        .controls label, .controls .control-group label {
+            margin-right: 5px;
+        }
+        .controls .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
 
-    /* --- GAME --- */
-    .game-top-row {
-        width: 100%; max-width: 500px; display: flex; justify-content: space-between; align-items: center;
-        margin-bottom: 20px;
-    }
-    .quit-btn {
-        background: none; border: 2px solid var(--border); border-radius: 12px;
-        padding: 5px 12px; color: var(--text-light); font-weight: bold; cursor: pointer;
-    }
-    .reset-btn {
-        background: var(--danger);
-        border: none;
-        border-radius: 12px;
-        padding: 5px 12px;
-        color: white;
-        font-weight: bold;
-        cursor: pointer;
-        margin-left: 10px;
-    }
+        .controls input[type="range"] {
+            vertical-align: middle;
+        }
 
-    .listen-circle {
-        width: 120px; height: 120px; border-radius: 50%;
-        background: var(--secondary); box-shadow: 0 6px 0 var(--secondary-dark);
-        display: flex; align-items: center; justify-content: center;
-        color: white; cursor: pointer; transition: transform 0.1s;
-        margin-bottom: 30px; position: relative;
-    }
-    .listen-circle:active { transform: translateY(6px); box-shadow: none; margin-bottom: 36px; }
-    .listen-circle.playing { background: var(--text); box-shadow: 0 6px 0 #222; }
+        .controls button {
+            padding: 8px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
 
-    .toggle-row { display: flex; gap: 10px; margin-bottom: 20px; }
-    .metro-toggle {
-        background: var(--border); border: none; padding: 8px 16px;
-        border-radius: 20px; font-size: 0.8rem; cursor: pointer; font-weight: bold;
-    }
-    .metro-toggle.active { background: var(--primary); color: white; }
+        .controls button:hover {
+            background-color: #0056b3;
+        }
 
-    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 400px; }
-    .game-btn {
-        background: var(--card-bg); border: 2px solid var(--border); border-bottom-width: 4px;
-        border-radius: var(--radius); padding: 20px;
-        font-size: 1.1rem; font-weight: 700; color: var(--text);
-        text-align: center; cursor: pointer; transition: all 0.1s;
-    }
-    .game-btn:active { transform: translateY(2px); border-bottom-width: 2px; }
-    .game-btn.correct { background: #d7ffb8; border-color: var(--primary); color: var(--primary-dark); }
-    .game-btn.wrong { background: #ffdfe0; border-color: var(--danger); color: var(--danger-dark); }
-    .game-btn:disabled { opacity: 1; cursor: default; pointer-events: none; }
+        .controls button:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
 
-    /* --- SLIDER STYLES --- */
-    .insane-inputs {
-        display: flex; flex-direction: column; gap: 20px; text-align: left;
-        width: 100%; max-width: 400px;
-    }
-    .slider-group {
-        background: var(--card-bg);
-        border: 2px solid var(--border);
-        border-radius: var(--radius);
-        padding: 15px;
-    }
-    .slider-header {
-        display: flex; justify-content: space-between; align-items: center;
-        margin-bottom: 12px;
-    }
-    .slider-label { font-weight: bold; color: var(--text-light); font-size: 0.9rem; text-transform: uppercase; }
-    .slider-value { font-weight: 900; font-size: 1.2rem; color: var(--primary); }
-    
-    input[type=range] {
-        width: 100%; -webkit-appearance: none; background: transparent; cursor: pointer;
-    }
-    input[type=range]:focus { outline: none; }
-    
-    /* Slider Track */
-    input[type=range]::-webkit-slider-runnable-track {
-        width: 100%; height: 10px; background: #e0e0e0; border-radius: 5px;
-    }
-    /* Slider Thumb */
-    input[type=range]::-webkit-slider-thumb {
-        height: 28px; width: 28px; border-radius: 50%;
-        background: var(--primary); border: 3px solid white;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        -webkit-appearance: none; margin-top: -9px; transition: transform 0.1s;
-    }
-    input[type=range]:active::-webkit-slider-thumb { transform: scale(1.1); }
+        .inverted-colors {
+            --bg-color: #FFFFFF;
+            --text-color: #000000;
+        }
 
-    /* --- BOTTOM SHEET --- */
-    .bottom-sheet {
-        position: fixed; bottom: 0; left: 0; width: 100%;
-        background: var(--card-bg); border-top: 2px solid var(--border);
-        padding: 25px; padding-bottom: max(25px, var(--safe-bottom));
-        transform: translateY(110%); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        z-index: 100;
-    }
-    .bottom-sheet.visible { transform: translateY(0); }
-    .bottom-sheet.correct { border-top-color: var(--primary); }
-    .bottom-sheet.wrong { border-top-color: var(--danger); }
+        .teleprompter-window:-webkit-full-screen,
+        .teleprompter-window:-moz-full-screen,
+        .teleprompter-window:-ms-fullscreen,
+        .teleprompter-window:fullscreen {
+            padding-top: 0;
+        }
 
-    .action-btn {
-        width: 100%; padding: 16px; border-radius: var(--radius); border: none;
-        font-size: 1.1rem; font-weight: 800; text-transform: uppercase; color: white;
-        background: var(--primary); box-shadow: 0 4px 0 var(--primary-dark); cursor: pointer;
-    }
-    .action-btn:active { transform: translateY(4px); box-shadow: none; }
-    .action-btn.danger { background: var(--danger); box-shadow: 0 4px 0 var(--danger-dark); }
-    .action-btn:disabled { background: #ccc; box-shadow: none; cursor: default; transform: none; }
+        .hidden {
+            display: none !important;
+        }
 
-    /* --- MODAL --- */
-    .modal-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.8); z-index: 200;
-        display: flex; align-items: center; justify-content: center;
-        opacity: 0; pointer-events: none; transition: opacity 0.2s;
-        backdrop-filter: blur(5px);
-    }
-    .modal-overlay.visible { opacity: 1; pointer-events: all; }
-    .modal-card {
-        background: var(--card-bg); width: 90%; max-width: 350px; padding: 30px;
-        border-radius: var(--radius); text-align: center;
-        transform: scale(0.9); transition: transform 0.2s;
-    }
-    .modal-overlay.visible .modal-card { transform: scale(1); }
-
-    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
-</style>
+    </style>
 </head>
 <body>
 
-<canvas id="effects-canvas"></canvas>
-
-<!-- Header -->
-<div class="app-header">
-    <div class="stat-badge" onclick="goHome()">
-        <span>🎻 VibratoMaster</span>
+    <div class="teleprompter-window" id="teleprompterWindow">
+        <div id="teleprompterText">Your script will appear here.</div>
     </div>
-    <div style="display:flex; gap:15px; align-items:center">
-        <div class="streak-badge" id="streak-display" style="display:none;">🔥 0</div>
-        <div class="stat-badge" id="hearts-display">
-            <svg class="heart-icon" width="24" height="24" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-            <span id="heart-val">5</span>
+
+    <textarea id="scriptInput" placeholder="Paste your script here... Script will auto-load on change."></textarea>
+
+    <div class="controls">
+        <button id="loadScriptBtn">Load/Reload Script</button>
+        <button id="startPauseBtn" disabled>Start (Space)</button>
+        <button id="stopBtn" disabled>Stop & Reset (Shift)</button>
+
+        <div class="control-group">
+            <label for="speedRange">Speed:</label>
+            <input type="range" id="speedRange" min="1" max="50" value="3.5" step="0.5">
+            <span id="speedValue">5.0</span>
         </div>
-        <div class="running-score" id="insane-total" style="display:none;">Total: 0</div>
-    </div>
-</div>
 
-<!-- HOME -->
-<div id="home-view" class="view-container active">
-    <div class="level-list" id="level-list"></div>
-</div>
-
-<!-- GAME -->
-<div id="game-view" class="view-container">
-    <div class="game-top-row">
-        <button class="quit-btn" onclick="triggerGameOver('Quit')">✕ Quit</button>
-        <button class="reset-btn" id="reset-btn" onclick="resetCurrentMode()">Reset</button>
-        <div style="text-align:right">
-            <div style="font-weight:bold; font-size:0.9rem" id="batch-display">Random</div>
-            <div style="font-size:0.8rem; color:var(--text-light)" id="score-display">Score: 0</div>
+        <div class="control-group">
+            <label for="fontSizeRange">Font Size:</label>
+            <input type="range" id="fontSizeRange" min="20" max="300" value="20">
+            <span id="fontSizeValue">48px</span>
         </div>
-    </div>
 
-    <div class="listen-circle" id="listen-btn">
-        <svg id="icon-play" width="50" height="50" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
-        <svg id="icon-stop" width="50" height="50" viewBox="0 0 24 24" fill="white" style="display:none"><path d="M6 6h12v12H6z"/></svg>
-    </div>
-
-    <div class="toggle-row">
-        <button class="metro-toggle" id="metro-toggle">Metronome: Off</button>
-        <button class="metro-toggle" id="multi-toggle" style="display:none;">1 Player</button>
-    </div>
-
-    <div style="font-size:0.9rem; color:var(--text-light); margin-bottom:20px;">Reference: A4 (442Hz)</div>
-
-    <div id="options-container" class="options-grid"></div>
-
-    <!-- Virtuoso/Insane Mode (SLIDERS) -->
-    <div id="virtuoso-container" style="display:none; width:100%; max-width:400px;">
-        <div id="insane-inputs" class="insane-inputs">
-            
-            <div class="slider-group">
-                <div class="slider-header">
-                    <span class="slider-label">Speed</span>
-                    <span id="rate-display" class="slider-value">4.0 Hz</span>
-                </div>
-                <input type="range" id="input-rate" min="4.0" max="7.0" step="0.1" value="4.0">
-            </div>
-
-            <div class="slider-group">
-                <div class="slider-header">
-                    <span class="slider-label">Width</span>
-                    <span id="depth-display" class="slider-value">11 cents</span>
-                </div>
-                <input type="range" id="input-depth" min="11" max="44" step="1" value="11">
-            </div>
-
-            <button id="submit-insane" class="action-btn">Submit Answer</button>
+        <div class="control-group" id="textWidthControlGroup">
+            <label for="textWidthRange">Text Width:</label>
+            <input type="range" id="textWidthRange" min="1" max="100" value="5">
+            <span id="textWidthValue">100%</span>
         </div>
+
+        <button id="scrollDirectionBtn">Scroll Right-to-Left</button>
+
+        <div id="horizontalScrollSettings" class="control-group hidden">
+            <label for="linePositionRange">Line Vertical Pos:</label>
+            <input type="range" id="linePositionRange" min="0" max="100" value="0">
+            <span id="linePositionValue">0px</span>
+        </div>
+
+        <button id="mirrorBtn">Mirror Display</button>
+        <button id="invertColorsBtn">Invert Colors</button>
+        <button id="fullscreenBtn">Fullscreen Display</button>
     </div>
-</div>
 
-<!-- FEEDBACK -->
-<div id="feedback-sheet" class="bottom-sheet">
-    <h2 id="sheet-title" style="margin:0 0 10px 0;"></h2>
-    <div id="sheet-msg" style="margin:0 0 20px 0; font-size:1rem;"></div>
-    <button id="sheet-btn" class="action-btn">Continue</button>
-</div>
+    <script>
+        const scriptInput = document.getElementById('scriptInput');
+        const loadScriptBtn = document.getElementById('loadScriptBtn');
+        const teleprompterText = document.getElementById('teleprompterText');
+        const teleprompterWindow = document.getElementById('teleprompterWindow');
 
-<!-- MODAL -->
-<div id="modal-overlay" class="modal-overlay">
-    <div class="modal-card">
-        <div id="modal-icon" style="font-size:3rem; margin-bottom:10px;">🏆</div>
-        <h2 id="modal-title" style="margin-top:0;"></h2>
-        <p id="modal-msg" style="color:var(--text-light); margin-bottom:20px;"></p>
-        <button id="modal-btn" class="action-btn"></button>
-    </div>
-</div>
+        const startPauseBtn = document.getElementById('startPauseBtn');
+        const stopBtn = document.getElementById('stopBtn');
 
-<script>
-/* =========================================
-   AUDIO ENGINE (AudioWorklet + Cleanups)
-   ========================================= */
-const workletCode = `
-class VibratoProcessor extends AudioWorkletProcessor {
-  static get parameterDescriptors() {
-    return [
-      { name: 'baseFrequency', defaultValue: 442, minValue: 20, maxValue: 20000 },
-      { name: 'depth', defaultValue: 50, minValue: 0, maxValue: 200 },
-      { name: 'rate', defaultValue: 5.0, minValue: 0.1, maxValue: 20 }
-    ];
-  }
-  constructor() {
-    super(); this.carrierPhase = 0; this.lfoPhase = 0; this.previousInstantaneousFreq = 0;
-    this.startTime = -1;
-    this.port.onmessage = (e) => { if (e.data.startTime !== undefined) this.startTime = e.data.startTime; };
-  }
-  process(inputs, outputs, parameters) {
-    const output = outputs[0]; const outputChannel = output[0]; const bufferLength = outputChannel.length;
-    if (this.startTime !== -1 && currentTime < this.startTime) { outputChannel.fill(0); return true; }
-    const baseFreqParams = parameters.baseFrequency; const depthParams = parameters.depth; const rateParams = parameters.rate;
-    const twoPi = 2 * Math.PI; const inverseSampleRate = 1 / sampleRate;
-    for (let i = 0; i < bufferLength; ++i) {
-      const currentBaseFreq = baseFreqParams.length > 1 ? baseFreqParams[i] : baseFreqParams[0];
-      const currentDepth = depthParams.length > 1 ? depthParams[i] : depthParams[0];
-      const currentRate = rateParams.length > 1 ? rateParams[i] : rateParams[0];
-      const calibrationFactor = 1.0 + (currentRate * 0.005);
-      const effectiveDepth = currentDepth * calibrationFactor;
-      const lfoValue = Math.sin(this.lfoPhase * twoPi);
-      const centsShift = lfoValue * effectiveDepth;
-      const frequencyMultiplier = Math.pow(2, centsShift / 1200);
-      const targetInstantaneousFreq = currentBaseFreq * frequencyMultiplier;
-      if (this.previousInstantaneousFreq === 0) this.previousInstantaneousFreq = targetInstantaneousFreq;
-      const averageFreq = (this.previousInstantaneousFreq + targetInstantaneousFreq) / 2;
-      this.carrierPhase += averageFreq * inverseSampleRate;
-      this.previousInstantaneousFreq = targetInstantaneousFreq;
-      if (this.carrierPhase >= 1.0) this.carrierPhase -= 1.0;
-      
-      let val = 0;
-      val += Math.sin(this.carrierPhase * twoPi);
-      val += 0.25 * Math.sin(2 * this.carrierPhase * twoPi);
-      val += 0.1 * Math.sin(3 * this.carrierPhase * twoPi);
-      outputChannel[i] = val * 0.74;
-      
-      this.lfoPhase += currentRate * inverseSampleRate;
-      if (this.lfoPhase >= 1.0) this.lfoPhase -= 1.0;
-    }
-    return true;
-  }
-}
-registerProcessor('vibrato-processor', VibratoProcessor);
-`;
+        const speedRange = document.getElementById('speedRange');
+        const speedValue = document.getElementById('speedValue');
+        const fontSizeRange = document.getElementById('fontSizeRange');
+        const fontSizeValue = document.getElementById('fontSizeValue');
 
-let audioContext = null; let vibratoNode = null; let gainNode = null; let metronomeGainNode = null;
-let isPlaying = false; let isMetronomeOn = false; let metronomeInterval = null;
-const NOTE_GAIN = 0.60; const CLICK_GAIN = 0.25; const FADE_TIME = 0.05; const SYNC_DELAY = 0.1; const METRO_BPM = 60;
+        const textWidthRange = document.getElementById('textWidthRange');
+        const textWidthValue = document.getElementById('textWidthValue');
+        const textWidthControlGroup = document.getElementById('textWidthControlGroup');
 
-async function initAudio() {
-    if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const blob = new Blob([workletCode], { type: 'application/javascript' });
-        const url = URL.createObjectURL(blob);
-        await audioContext.audioWorklet.addModule(url);
-    }
-    if (audioContext.state === 'suspended') await audioContext.resume();
-}
+        const mirrorBtn = document.getElementById('mirrorBtn');
+        const invertColorsBtn = document.getElementById('invertColorsBtn');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const scrollDirectionBtn = document.getElementById('scrollDirectionBtn');
+        const horizontalScrollSettings = document.getElementById('horizontalScrollSettings');
+        const linePositionRange = document.getElementById('linePositionRange');
+        const linePositionValue = document.getElementById('linePositionValue');
 
-function createMetronomePath() {
-    if (!metronomeGainNode) {
-        metronomeGainNode = audioContext.createGain();
-        metronomeGainNode.gain.value = CLICK_GAIN;
-        metronomeGainNode.connect(audioContext.destination);
-    }
-}
+        let isScrolling = false;
+        let animationFrameId = null;
 
-function scheduleClick(time) {
-    if (!isPlaying) return;
-    createMetronomePath();
-    const clickOsc = audioContext.createOscillator();
-    const clickGain = audioContext.createGain();
-    clickOsc.type = 'sine'; clickOsc.frequency.setValueAtTime(1768, time);
-    clickGain.gain.setValueAtTime(1.0, time);
-    clickGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
-    clickOsc.connect(clickGain); clickGain.connect(metronomeGainNode);
-    clickOsc.start(time); clickOsc.stop(time + 0.05);
-}
+        let currentTopPosition = 0;
+        let currentLeftPosition = 0;
 
-function startMetronomeLoop(startTime) {
-    const interval = 60 / METRO_BPM; let nextClickTime = startTime; 
-    function scheduler() {
-        if (!isPlaying || !isMetronomeOn) return;
-        while (nextClickTime < audioContext.currentTime + 0.1) {
-            scheduleClick(nextClickTime); nextClickTime += interval;
+        let scrollSpeed = parseFloat(speedRange.value); // MODIFIED
+        let initialFontSize = parseInt(fontSizeRange.value);
+        let isHorizontalMode = false;
+
+        const MANUAL_ADJUST_STEP = 50;
+
+        function initializeTeleprompter() {
+            teleprompterText.style.fontSize = `${initialFontSize}px`;
+            fontSizeValue.textContent = `${initialFontSize}px`;
+            speedValue.textContent = parseFloat(speedRange.value).toFixed(1); // MODIFIED
+
+            textWidthValue.textContent = `${textWidthRange.value}%`;
+
+            if (isHorizontalMode) {
+                textWidthControlGroup.classList.add('hidden');
+                horizontalScrollSettings.classList.remove('hidden');
+            } else {
+                textWidthControlGroup.classList.remove('hidden');
+                horizontalScrollSettings.classList.add('hidden');
+            }
+
+            updateLinePositionSliderMax();
+            linePositionRange.value = 0;
+            linePositionValue.textContent = `0px`;
+            loadScript();
         }
-        metronomeInterval = setTimeout(scheduler, 25);
-    }
-    scheduler();
-}
 
-function cleanupMetronome() { clearTimeout(metronomeInterval); metronomeInterval = null; }
+        function resetScrollPosition() {
+            teleprompterText.style.transition = 'none';
+            if (isHorizontalMode) {
+                teleprompterText.style.top = `${linePositionRange.value}px`;
+                currentLeftPosition = teleprompterWindow.clientWidth;
+                teleprompterText.style.left = `${currentLeftPosition}px`;
+            } else {
+                currentTopPosition = teleprompterWindow.clientHeight;
+                teleprompterText.style.top = `${currentTopPosition}px`;
+            }
+            void teleprompterText.offsetWidth;
+        }
 
-function playTone(rate, depth) {
-    if (isPlaying) { stopTone(); return; }
-    initAudio().then(() => {
-        if (vibratoNode) { try { vibratoNode.disconnect(); } catch(e){} }
-        if (gainNode) { try { gainNode.disconnect(); } catch(e){} }
-        cleanupMetronome();
+        function loadScript() {
+            const script = scriptInput.value;
+            stopScrolling();
 
-        vibratoNode = new AudioWorkletNode(audioContext, 'vibrato-processor');
-        gainNode = audioContext.createGain();
-        vibratoNode.connect(gainNode); gainNode.connect(audioContext.destination);
-        
-        const params = vibratoNode.parameters;
-        params.get('baseFrequency').setValueAtTime(442, audioContext.currentTime);
-        params.get('rate').setValueAtTime(rate, audioContext.currentTime);
-        params.get('depth').setValueAtTime(depth, audioContext.currentTime);
-        
-        const now = audioContext.currentTime; const startTime = now + SYNC_DELAY; 
-        vibratoNode.port.postMessage({ startTime: startTime });
-        
-        gainNode.gain.setValueAtTime(0, startTime);
-        gainNode.gain.linearRampToValueAtTime(NOTE_GAIN, startTime + FADE_TIME);
-        
-        isPlaying = true; updatePlayButton();
-        if (isMetronomeOn) startMetronomeLoop(startTime);
-    });
-}
+            if (script.trim() === "") {
+                teleprompterText.innerHTML = isHorizontalMode ? "Please load a script..." : "<p>Please load a script first.</p>";
+                startPauseBtn.disabled = true;
+                stopBtn.disabled = true;
+            } else {
+                if (isHorizontalMode) {
+                    const singleLineScript = script.split('\n').join('   \u2022   ');
+                    teleprompterText.textContent = singleLineScript;
+                    teleprompterText.style.textAlign = 'left';
+                    teleprompterText.style.padding = '0';
+                    teleprompterText.style.width = 'max-content';
+                    teleprompterText.style.transform = 'none';
+                    teleprompterText.style.left = 'auto';
+                    teleprompterText.style.whiteSpace = 'nowrap';
+                } else {
+                    teleprompterText.innerHTML = script.split('\n').map(line => `<p>${line || ' '}</p>`).join('');
+                    teleprompterText.style.textAlign = 'center';
+                    teleprompterText.style.padding = '';
+                    teleprompterText.style.width = `${textWidthRange.value}%`;
+                    teleprompterText.style.left = '50%';
+                    teleprompterText.style.transform = 'translateX(-50%)';
+                    teleprompterText.style.whiteSpace = 'pre-wrap';
+                }
+                startPauseBtn.disabled = false;
+                stopBtn.disabled = false;
+            }
 
-function stopTone() {
-    cleanupMetronome();
-    if (!isPlaying) return;
-    if (gainNode) {
-        try {
-            const now = audioContext.currentTime;
-            gainNode.gain.cancelScheduledValues(now);
-            gainNode.gain.setValueAtTime(gainNode.gain.value, now);
-            gainNode.gain.linearRampToValueAtTime(0, now + FADE_TIME);
-        } catch(e) {}
-    }
-    setTimeout(() => {
-        if (vibratoNode) { try { vibratoNode.disconnect(); } catch(e){} vibratoNode = null; }
-        if (gainNode) { try { gainNode.disconnect(); } catch(e){} gainNode = null; }
-        isPlaying = false; 
-        updatePlayButton();
-    }, (FADE_TIME * 1000) + 50);
-}
+            updateLinePositionSliderMax();
+            resetScrollPosition();
+        }
 
-function updatePlayButton() {
-    const btn = document.getElementById('listen-btn');
-    const playIcon = document.getElementById('icon-play');
-    const stopIcon = document.getElementById('icon-stop');
-    if (isPlaying) {
-        btn.classList.add('playing');
-        playIcon.style.display = 'none';
-        stopIcon.style.display = 'block';
-    } else {
-        btn.classList.remove('playing');
-        playIcon.style.display = 'block';
-        stopIcon.style.display = 'none';
-    }
-}
+        function scrollLoop() {
+            if (!isScrolling) return;
 
-// Background Handling (Memory Leak Fix)
-document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-        stopTone();
-        cleanupMetronome();
-        particles = [];
-        if (audioContext && audioContext.state === 'running') audioContext.suspend();
-    } else {
-        if (audioContext && audioContext.state === 'suspended') audioContext.resume();
-    }
-});
+            if (isHorizontalMode) {
+                currentLeftPosition -= (scrollSpeed / 10);
+                teleprompterText.style.left = `${currentLeftPosition}px`;
+                if (teleprompterText.offsetLeft + teleprompterText.scrollWidth < 0) {
+                    stopScrolling();
+                } else {
+                    animationFrameId = requestAnimationFrame(scrollLoop);
+                }
+            } else {
+                currentTopPosition -= (scrollSpeed / 10);
+                teleprompterText.style.top = `${currentTopPosition}px`;
+                if (teleprompterText.offsetTop + teleprompterText.offsetHeight < 0) {
+                    stopScrolling();
+                } else {
+                    animationFrameId = requestAnimationFrame(scrollLoop);
+                }
+            }
+        }
 
-/* =========================================
-   GAME STATE
-   ========================================= */
-const LEVELS = [
-    { id: 'slow-fast', title: "Slow vs Fast", desc: "Speed Training", icon: '⚡', type: 'rate' },
-    { id: 'narrow-wide', title: "Narrow vs Wide", desc: "Width Training", icon: '🎚️', type: 'depth' },
-    { id: 'mix', title: "Vibrato Mixer", desc: "Combined Training", icon: '🎵', type: 'mix' },
-    { id: 'insane', title: "Virtuoso", desc: "Slider Challenge", icon: '🎻', type: 'insane' }
-];
+        function startScrolling() {
+            if (startPauseBtn.disabled) return;
+            isScrolling = true;
+            startPauseBtn.textContent = 'Pause (Space)';
+            animationFrameId = requestAnimationFrame(scrollLoop);
+        }
 
-const MAX_HEARTS = 5;
-const HISTORY_LENGTH = 3; 
+        function pauseScrolling() {
+            isScrolling = false;
+            startPauseBtn.textContent = 'Resume (Space)';
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+        }
 
-let state = {
-    currentMode: null,
-    hearts: MAX_HEARTS,
-    batchIndex: 0,
-    target: { rate: 0, depth: 0 },
-    history: [],
-    isMultiplayer: false,
-    p1Guess: null,
-    insaneTotalScore: 0,
-    insaneRound: 0,
-    bestScores: {},
-    streak: 0,
-    modeState: {
-        'slow-fast': { currentScore: 0 },
-        'narrow-wide': { currentScore: 0 },
-        'mix': { currentScore: 0 }
-    }
-};
+        function stopScrolling() {
+            isScrolling = false;
+            startPauseBtn.textContent = 'Start (Space)';
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            resetScrollPosition();
+        }
 
-try {
-    const saved = localStorage.getItem('vm_best_scores_final');
-    if (saved) state.bestScores = JSON.parse(saved);
-} catch(e){}
+        function updateLinePositionSliderMax() {
+            if (isHorizontalMode) {
+                const textLineHeight = teleprompterText.offsetHeight || parseFloat(teleprompterText.style.fontSize || initialFontSize) * 1.5;
+                const maxTop = Math.max(0, teleprompterWindow.clientHeight - textLineHeight);
+                linePositionRange.max = maxTop;
+                if (parseInt(linePositionRange.value) > maxTop) {
+                    linePositionRange.value = maxTop;
+                }
+                linePositionValue.textContent = `${linePositionRange.value}px`;
+                 if (!isScrolling) teleprompterText.style.top = `${linePositionRange.value}px`;
+            }
+        }
 
-/* =========================================
-   LEVEL SYSTEM
-   ========================================= */
-function renderHome() {
-    const list = document.getElementById('level-list');
-    list.innerHTML = '';
-    LEVELS.forEach(lvl => {
-        const best = state.bestScores[lvl.id] || 0;
-        const div = document.createElement('div');
-        div.className = 'level-card';
-        div.onclick = () => initGame(lvl.id);
-        div.innerHTML = `
-            <div class="level-icon">${lvl.icon}</div>
-            <div>
-                <div style="font-weight:bold; font-size:1.1rem">${lvl.title}</div>
-                <div style="font-size:0.85rem; color:var(--text-light)">${lvl.desc}</div>
-            </div>
-            <div class="score-badge">Best: ${best}</div>
-        `;
-        list.appendChild(div);
-    });
-}
+        // --- Event Listeners ---
+        loadScriptBtn.addEventListener('click', loadScript);
+        scriptInput.addEventListener('input', loadScript);
 
-function initGame(modeId) {
-    state.currentMode = LEVELS.find(l => l.id === modeId);
-    state.hearts = MAX_HEARTS;
-    state.p1Guess = null;
-    state.history = [];
-    state.streak = 0;
-    
-    if (state.modeState[modeId]) state.modeState[modeId].currentScore = 0;
-    
-    document.getElementById('reset-btn').style.display = state.currentMode.type === 'insane' ? 'none' : 'inline-block';
-    document.querySelectorAll('.view-container').forEach(e => e.classList.remove('active'));
-    document.getElementById('game-view').classList.add('active');
-    
-    const isInsane = state.currentMode.type === 'insane';
-    document.getElementById('options-container').style.display = isInsane ? 'none' : 'grid';
-    document.getElementById('virtuoso-container').style.display = isInsane ? 'block' : 'none';
-    document.getElementById('multi-toggle').style.display = isInsane ? 'inline-block' : 'none';
-    document.getElementById('hearts-display').style.display = isInsane ? 'none' : 'flex';
-    document.getElementById('insane-total').style.display = isInsane ? 'block' : 'none';
-    document.getElementById('streak-display').style.display = 'none';
-    document.getElementById('heart-val').innerText = MAX_HEARTS;
-    
-    const submitBtn = document.getElementById('submit-insane');
-    if (submitBtn) submitBtn.disabled = false;
-    
-    if (isInsane) {
-        state.insaneTotalScore = 0;
-        state.insaneRound = 0;
-        resetSliders();
-    }
-    
-    updateUI();
-    nextRound();
-}
-
-function resetCurrentMode() {
-    if (!state.currentMode || state.currentMode.type === 'insane') return;
-    initGame(state.currentMode.id);
-}
-
-function resetSliders() {
-    // Start at minimum to prevent bias
-    document.getElementById('input-rate').value = 4.0;
-    document.getElementById('input-depth').value = 11;
-    document.getElementById('rate-display').innerText = "4.0 Hz";
-    document.getElementById('depth-display').innerText = "11 cents";
-}
-
-function nextRound() {
-    stopTone();
-    document.getElementById('listen-btn').classList.remove('disabled');
-    document.getElementById('feedback-sheet').classList.remove('visible');
-    
-    const roundNum = state.currentMode.type === 'insane' ? state.insaneRound + 1 : state.batchIndex + 1;
-    document.getElementById('score-display').innerText = `Round: ${roundNum}`;
-    
-    if (state.currentMode.type === 'insane') {
-        document.getElementById('insane-total').innerText = `Total: ${state.insaneTotalScore}`;
-    }
-    
-    state.target = generateTarget(state.currentMode.type);
-    
-    state.history.push({...state.target});
-    if (state.history.length > HISTORY_LENGTH) state.history.shift();
-    
-    if (state.currentMode.type !== 'insane') {
-        const options = generateOptions(state.target, state.currentMode.type);
-        renderOptions(options);
-    } else {
-        // Reset Sliders every round
-        resetSliders();
-        document.getElementById('submit-insane').disabled = false;
-    }
-}
-
-function generateTarget(type) {
-    let rate, depth;
-    const MAX_ATTEMPTS = 150; 
-    
-    for (let attempts = 0; attempts < MAX_ATTEMPTS; attempts++) {
-        rate = 4.0 + Math.random() * (7.0 - 4.0);
-        depth = 11 + Math.random() * (44 - 11);
-        rate = parseFloat(rate.toFixed(1));
-        depth = Math.floor(depth);
-        
-        if (type === 'rate') depth = 25;
-        if (type === 'depth') rate = 5.5;
-
-        // Anti-repetition logic (History Buffer)
-        const isTooSimilar = state.history.some(h => {
-            const rateDiff = Math.abs(rate - h.rate);
-            const depthDiff = Math.abs(depth - h.depth);
-            if (type === 'insane' || type === 'mix') return rateDiff < 1.0 && depthDiff < 10;
-            if (type === 'rate') return rateDiff < 1.0;
-            if (type === 'depth') return depthDiff < 10;
-            return false;
+        startPauseBtn.addEventListener('click', () => {
+            if (isScrolling) {
+                pauseScrolling();
+            } else {
+                startScrolling();
+            }
         });
-        if (!isTooSimilar) break;
-    }
-    return { rate, depth };
-}
 
-function generateOptions(target, type) {
-    // 2 Options for fast-paced arcade fun
-    const numOptions = 2; 
-    const rateDev = type === 'depth' ? 0 : 1.5;
-    const depthDev = type === 'rate' ? 0 : 15;
-    
-    const options = [target];
-    const used = new Set([`${target.rate}-${target.depth}`]);
-    
-    for (let i = 0; i < numOptions - 1; i++) {
-        let opt, attempts = 0;
-        while (attempts < 50) {
-            attempts++;
-            let r = target.rate, d = target.depth;
-            const dir = Math.random() > 0.5 ? 1 : -1;
-            
-            if (rateDev > 0) {
-                // Variation logic
-                r = target.rate + (dir * rateDev * (0.8 + Math.random() * 0.4));
-                r = Math.max(4.0, Math.min(7.0, r));
-                r = parseFloat(r.toFixed(1));
-            }
-            if (depthDev > 0) {
-                d = target.depth + (dir * depthDev * (0.8 + Math.random() * 0.4));
-                d = Math.floor(Math.max(11, Math.min(44, d)));
-            }
-            
-            const key = `${r}-${d}`;
-            const closeToExisting = options.some(o => Math.abs(o.rate - r) < 0.5 && Math.abs(o.depth - d) < 5);
-            if (!used.has(key) && !closeToExisting) {
-                opt = { rate: r, depth: d };
-                used.add(key);
-                break;
-            }
-        }
-        // Fallback generator
-        if (!opt) {
-             if (rateDev > 0) opt = { rate: target.rate + (Math.random()>0.5?1.5:-1.5), depth: target.depth };
-             else opt = { rate: target.rate, depth: target.depth + (Math.random()>0.5?15:-15) };
-             opt.rate = parseFloat(Math.max(4.0, Math.min(7.0, opt.rate)).toFixed(1));
-             opt.depth = Math.floor(Math.max(11, Math.min(44, opt.depth)));
-        }
-        options.push(opt);
-    }
-    return options.sort(() => Math.random() - 0.5);
-}
+        stopBtn.addEventListener('click', stopScrolling);
 
-function renderOptions(options) {
-    const container = document.getElementById('options-container');
-    container.innerHTML = '';
-    options.forEach(opt => {
-        const btn = document.createElement('button');
-        btn.className = 'game-btn';
-        btn.innerHTML = `<strong>${opt.rate} Hz</strong><br><small>${opt.depth} cents</small>`;
-        btn.onclick = () => handleAnswer(opt, btn);
-        container.appendChild(btn);
-    });
-}
-
-function handleAnswer(choice, btn) {
-    const isCorrect = choice.rate === state.target.rate && choice.depth === state.target.depth;
-    processResult(isCorrect, btn);
-}
-
-function handleInsaneSubmit() {
-    const rateInput = document.getElementById('input-rate');
-    const depthInput = document.getElementById('input-depth');
-    
-    const userRate = parseFloat(rateInput.value);
-    const userDepth = parseFloat(depthInput.value);
-    
-    if (state.isMultiplayer && state.activePlayer === 1) {
-        state.p1Guess = { rate: userRate, depth: userDepth };
-        showMultiplayerSwitch();
-        return;
-    }
-    
-    const pts = calculateScore(userRate, userDepth);
-    state.insaneTotalScore += pts;
-    state.insaneRound++;
-    
-    const rateDiff = Math.abs(userRate - state.target.rate).toFixed(1);
-    const depthDiff = Math.abs(userDepth - state.target.depth);
-    const msg = `
-        <div style="text-align:center; font-size:2rem; font-weight:900; color:${pts>=90?'var(--primary)':'var(--secondary)'}; margin-bottom:10px;">
-            ${pts} Points
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.9rem; background:rgba(0,0,0,0.05); padding:10px; border-radius:8px;">
-            <div><strong>Target:</strong><br>${state.target.rate}Hz / ${state.target.depth}c</div>
-            <div><strong>You:</strong><br>${userRate}Hz / ${userDepth}c</div>
-        </div>
-        <div style="font-size:0.8rem; color:#777; margin-top:5px;">
-            Off by: ${rateDiff}Hz / ${depthDiff}c
-        </div>
-    `;
-    
-    if (state.isMultiplayer) {
-        const pts2 = calculateScore(userRate, userDepth);
-        const pts1 = calculateScore(state.p1Guess.rate, state.p1Guess.depth);
-        showMultiplayerResult(pts1, pts2);
-    } else {
-        processInsaneResult(msg);
-    }
-}
-
-function calculateScore(userRate, userDepth) {
-    // Simple Linear Scoring: 50 pts per parameter. 
-    // Rate: -5 pts per 0.1Hz. Depth: -2.5 pts per 1 cent.
-    const rateDiff = Math.abs(userRate - state.target.rate);
-    const depthDiff = Math.abs(userDepth - state.target.depth);
-    let rateScore = 50 - (rateDiff * 50);
-    let depthScore = 50 - (depthDiff * 2.5);
-    if (rateScore < 0) rateScore = 0;
-    if (depthScore < 0) depthScore = 0;
-    return Math.round(rateScore + depthScore);
-}
-
-function processResult(isCorrect, btn, msg) {
-    stopTone();
-    document.getElementById('listen-btn').classList.add('disabled');
-    document.querySelectorAll('.game-btn').forEach(b => b.disabled = true);
-    
-    const sheet = document.getElementById('feedback-sheet');
-    const title = document.getElementById('sheet-title');
-    const message = document.getElementById('sheet-msg');
-    const btnEl = document.getElementById('sheet-btn');
-    
-    btnEl.disabled = false;
-    btnEl.style.display = 'block';
-    
-    if (isCorrect) {
-        playSfx('win');
-        fireConfetti();
-        if (btn) btn.classList.add('correct');
-        title.innerText = "Perfect!";
-        message.innerHTML = msg || "Excellent perception!";
-        btnEl.innerText = "Next Round";
-        btnEl.className = "action-btn";
-        btnEl.onclick = checkLevelProgression;
-        state.streak++;
-        if (state.streak > 2) {
-            const streakEl = document.getElementById('streak-display');
-            streakEl.innerText = `🔥 ${state.streak}`;
-            streakEl.style.display = 'block';
-        }
-    } else {
-        playSfx('lose');
-        if (navigator.vibrate) navigator.vibrate(200);
-        if (btn) btn.classList.add('wrong');
-        state.hearts--;
-        document.getElementById('heart-val').innerText = state.hearts;
-        state.streak = 0;
-        document.getElementById('streak-display').style.display = 'none';
-        title.innerText = "Not quite";
-        message.innerHTML = msg || `Correct: <strong>${state.target.rate}Hz / ${state.target.depth}c</strong>`;
-        btnEl.innerText = "Continue";
-        btnEl.className = "action-btn";
-        btnEl.onclick = checkLevelProgression;
-        if (state.hearts <= 0) {
-            btnEl.innerText = "Game Over";
-            btnEl.className = 'action-btn danger';
-            btnEl.onclick = () => triggerGameOver("Out of Hearts");
-        }
-    }
-    sheet.className = 'bottom-sheet visible ' + (isCorrect ? 'correct' : 'wrong');
-}
-
-function processInsaneResult(msg) {
-    stopTone();
-    document.getElementById('listen-btn').classList.add('disabled');
-    document.getElementById('submit-insane').disabled = true;
-    
-    const sheet = document.getElementById('feedback-sheet');
-    const title = document.getElementById('sheet-title');
-    const message = document.getElementById('sheet-msg');
-    const btnEl = document.getElementById('sheet-btn');
-    
-    playSfx('win');
-    if (state.insaneRound >= 5) {
-        title.innerText = "Session Complete!";
-        message.innerHTML = msg + `<br><strong>Total: ${state.insaneTotalScore}/500</strong>`;
-        btnEl.innerText = "See Final Results";
-        btnEl.onclick = () => triggerGameOver("5 Rounds Complete");
-    } else {
-        title.innerText = "Round Complete";
-        message.innerHTML = msg;
-        btnEl.innerText = "Next Round";
-        btnEl.onclick = checkLevelProgression;
-    }
-    sheet.className = 'bottom-sheet visible correct';
-}
-
-function showMultiplayerSwitch() {
-    stopTone();
-    const sheet = document.getElementById('feedback-sheet');
-    document.getElementById('sheet-title').innerText = "Switch Players";
-    document.getElementById('sheet-msg').innerHTML = "<p>Pass to <strong>Player 2</strong>. They can listen again.</p>";
-    document.getElementById('sheet-btn').innerText = "Player 2 Start";
-    document.getElementById('sheet-btn').onclick = () => {
-        sheet.classList.remove('visible');
-        state.activePlayer = 2;
-        updateUI();
-        resetSliders();
-        setTimeout(() => playTone(state.target.rate, state.target.depth), 300);
-    };
-    sheet.className = 'bottom-sheet visible';
-}
-
-function showMultiplayerResult(p1Score, p2Score) {
-    const winner = p1Score > p2Score ? "Player 1 Wins!" : p2Score > p1Score ? "Player 2 Wins!" : "It's a Tie!";
-    if (Math.max(p1Score, p2Score) >= 90) fireConfetti();
-    
-    const msg = `
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
-            <div style="padding:10px; background:rgba(0,0,0,0.05); border-radius:8px;">
-                <strong style="color:var(--secondary)">P1:</strong> ${state.p1Guess.rate}Hz / ${state.p1Guess.depth}c<br>
-                <strong>${p1Score} pts</strong>
-            </div>
-            <div style="padding:10px; background:rgba(0,0,0,0.05); border-radius:8px;">
-                <strong style="color:var(--danger)">P2:</strong> ${state.target.rate}Hz / ${state.target.depth}c<br>
-                <strong>${p2Score} pts</strong>
-            </div>
-        </div>
-        <p>Target: ${state.target.rate}Hz / ${state.target.depth}c</p>
-    `;
-    processResult(true, null, msg);
-    state.p1Guess = null; state.activePlayer = 1;
-}
-
-function checkLevelProgression() {
-    document.getElementById('feedback-sheet').classList.remove('visible');
-    document.querySelectorAll('.game-btn').forEach(b => b.classList.remove('correct', 'wrong'));
-    document.getElementById('submit-insane').disabled = false;
-    state.batchIndex++;
-    if (state.currentMode.type !== 'insane') state.modeState[state.currentMode.id].currentScore++;
-    setTimeout(() => playTone(state.target.rate, state.target.depth), 300);
-    nextRound();
-}
-
-function triggerGameOver(reason) {
-    stopTone();
-    document.getElementById('feedback-sheet').classList.remove('visible');
-    const mode = state.currentMode.id;
-    let score = state.currentMode.type === 'insane' ? state.insaneTotalScore : state.modeState[mode].currentScore;
-    if (score > (state.bestScores[mode] || 0)) {
-        state.bestScores[mode] = score;
-        localStorage.setItem('vm_best_scores_final', JSON.stringify(state.bestScores));
-    }
-    let msg, icon;
-    if (state.currentMode.type === 'insane') {
-        msg = `Final Score: ${state.insaneTotalScore}/500<br>Best: ${Math.max(state.insaneTotalScore, state.bestScores[mode] || 0)}`;
-        icon = "🏆";
-    } else {
-        msg = `Score: ${score}<br>Best: ${Math.max(score, state.bestScores[mode] || 0)}`;
-        icon = reason === "Out of Hearts" ? "💀" : "🏆";
-    }
-    showModal(reason, msg, "Main Menu", goHome, icon);
-}
-
-function showModal(title, msg, btnText, action, icon) {
-    document.getElementById('modal-icon').innerText = icon;
-    document.getElementById('modal-title').innerText = title;
-    document.getElementById('modal-msg').innerHTML = msg;
-    const btn = document.getElementById('modal-btn');
-    btn.innerText = btnText;
-    btn.onclick = action;
-    document.getElementById('modal-overlay').classList.add('visible');
-}
-
-function goHome() {
-    document.getElementById('modal-overlay').classList.remove('visible');
-    document.querySelectorAll('.view-container').forEach(e => e.classList.remove('active'));
-    document.getElementById('home-view').classList.add('active');
-    renderHome();
-}
-
-function updateUI() {
-    const isInsane = state.currentMode.type === 'insane';
-    document.getElementById('multi-toggle').style.display = isInsane ? 'inline-block' : 'none';
-    document.getElementById('insane-total').style.display = isInsane ? 'block' : 'none';
-    document.getElementById('hearts-display').style.display = isInsane ? 'none' : 'flex';
-    document.getElementById('multi-toggle').innerText = state.isMultiplayer ? '2 Players' : '1 Player';
-}
-
-function playSfx(type) {
-    if (audioContext && audioContext.state === 'suspended') audioContext.resume();
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const o = ctx.createOscillator(); const g = ctx.createGain();
-    o.connect(g).connect(ctx.destination);
-    const t = ctx.currentTime;
-    if (type === 'win') {
-        o.frequency.setValueAtTime(523.25, t);
-        o.frequency.setValueAtTime(659.25, t + 0.1);
-        o.frequency.setValueAtTime(783.99, t + 0.2);
-        g.gain.setValueAtTime(0.2, t);
-        g.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
-        o.start(t); o.stop(t + 0.5);
-    } else {
-        o.type = 'sawtooth'; o.frequency.value = 150;
-        g.gain.setValueAtTime(0.1, t);
-        g.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
-        o.start(t); o.stop(t + 0.2);
-    }
-}
-
-const canvas = document.getElementById('effects-canvas');
-const ctx = canvas.getContext('2d');
-let particles = [];
-function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-window.addEventListener('resize', resize); resize();
-function fireConfetti() {
-    for (let i = 0; i < 60; i++) {
-        particles.push({
-            x: canvas.width / 2, y: canvas.height / 2,
-            vx: (Math.random() - 0.5) * 20, vy: (Math.random() - 1) * 20,
-            color: `hsl(${Math.random() * 360}, 100%, 50%)`, size: Math.random() * 8 + 4,
-            gravity: 0.3
+        speedRange.addEventListener('input', (e) => {
+            scrollSpeed = parseFloat(e.target.value); // MODIFIED
+            speedValue.textContent = parseFloat(e.target.value).toFixed(1); // MODIFIED
         });
-    }
-    if (particles.length <= 60) loop();
-}
-function loop() {
-    if (!particles.length) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx; p.y += p.vy; p.vy += p.gravity;
-        ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size);
-        if (p.y > canvas.height + 50) particles.splice(i, 1);
-    }
-    if (particles.length > 0) requestAnimationFrame(loop);
-}
 
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('listen-btn').addEventListener('click', () => {
-        if (document.getElementById('listen-btn').classList.contains('disabled')) return;
-        if (isPlaying) stopTone(); else playTone(state.target.rate, state.target.depth);
-    });
+        fontSizeRange.addEventListener('input', (e) => {
+            const newSize = parseInt(e.target.value);
+            teleprompterText.style.fontSize = `${newSize}px`;
+            fontSizeValue.textContent = `${newSize}px`;
+            updateLinePositionSliderMax();
+            if (!isScrolling) resetScrollPosition();
+        });
 
-    document.getElementById('metro-toggle').addEventListener('click', () => {
-        isMetronomeOn = !isMetronomeOn;
-        const btn = document.getElementById('metro-toggle');
-        btn.classList.toggle('active', isMetronomeOn);
-        btn.innerText = `Metronome: ${isMetronomeOn ? 'On' : 'Off'}`;
-        if (isPlaying) { stopTone(); setTimeout(() => playTone(state.target.rate, state.target.depth), 150); }
-    });
+        textWidthRange.addEventListener('input', (e) => {
+            if (isHorizontalMode) return;
 
-    document.getElementById('multi-toggle').addEventListener('click', () => {
-        state.isMultiplayer = !state.isMultiplayer;
-        updateUI();
-    });
+            const newWidth = e.target.value;
+            teleprompterText.style.width = `${newWidth}%`;
+            textWidthValue.textContent = `${newWidth}%`;
+            if (!isScrolling) {
+                resetScrollPosition();
+            }
+        });
 
-    document.getElementById('submit-insane').addEventListener('click', handleInsaneSubmit);
-    
-    // Slider Events
-    document.getElementById('input-rate').addEventListener('input', (e) => {
-        document.getElementById('rate-display').innerText = parseFloat(e.target.value).toFixed(1) + " Hz";
-    });
-    document.getElementById('input-depth').addEventListener('input', (e) => {
-        document.getElementById('depth-display').innerText = e.target.value + " cents";
-    });
+        mirrorBtn.addEventListener('click', () => {
+            teleprompterWindow.classList.toggle('mirrored');
+        });
 
-    renderHome();
-});
-</script>
+        invertColorsBtn.addEventListener('click', () => {
+            document.body.classList.toggle('inverted-colors');
+        });
+
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                teleprompterWindow.requestFullscreen().catch(err => {
+                    alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        });
+
+        scrollDirectionBtn.addEventListener('click', () => {
+            isHorizontalMode = !isHorizontalMode;
+            if (isHorizontalMode) {
+                scrollDirectionBtn.textContent = 'Scroll Vertically';
+                horizontalScrollSettings.classList.remove('hidden');
+                textWidthControlGroup.classList.add('hidden');
+                teleprompterWindow.classList.add('horizontal-mode');
+                teleprompterText.style.transform = 'none';
+                teleprompterText.style.width = 'max-content';
+                teleprompterText.style.left = 'auto';
+            } else {
+                scrollDirectionBtn.textContent = 'Scroll Right-to-Left';
+                horizontalScrollSettings.classList.add('hidden');
+                textWidthControlGroup.classList.remove('hidden');
+                teleprompterWindow.classList.remove('horizontal-mode');
+                teleprompterText.style.width = `${textWidthRange.value}%`;
+                teleprompterText.style.left = '50%';
+                teleprompterText.style.transform = 'translateX(-50%)';
+            }
+            loadScript();
+        });
+
+        linePositionRange.addEventListener('input', (e) => {
+            const newPos = e.target.value;
+            linePositionValue.textContent = `${newPos}px`;
+            if (isHorizontalMode) {
+                teleprompterText.style.top = `${newPos}px`;
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.target === scriptInput) return;
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (!startPauseBtn.disabled) startPauseBtn.click();
+            } else if (e.key === 'Shift' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+                e.preventDefault();
+                if (!stopBtn.disabled) stopBtn.click();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                if (isScrolling) pauseScrolling();
+                if (isHorizontalMode) {
+                    currentLeftPosition += MANUAL_ADJUST_STEP;
+                    teleprompterText.style.left = `${currentLeftPosition}px`;
+                } else {
+                    currentTopPosition += MANUAL_ADJUST_STEP;
+                    teleprompterText.style.top = `${currentTopPosition}px`;
+                }
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                if (isScrolling) pauseScrolling();
+                if (isHorizontalMode) {
+                    currentLeftPosition -= MANUAL_ADJUST_STEP;
+                    teleprompterText.style.left = `${currentLeftPosition}px`;
+                } else {
+                    currentTopPosition -= MANUAL_ADJUST_STEP;
+                    teleprompterText.style.top = `${currentTopPosition}px`;
+                }
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            updateLinePositionSliderMax();
+            if (!isScrolling) resetScrollPosition();
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            updateLinePositionSliderMax();
+            if (!isScrolling) resetScrollPosition();
+        });
+
+        initializeTeleprompter();
+        setTimeout(() => {
+            updateLinePositionSliderMax();
+            if (!isScrolling) resetScrollPosition();
+        }, 100);
+
+    </script>
 </body>
 </html>
